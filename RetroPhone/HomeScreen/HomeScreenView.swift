@@ -67,6 +67,13 @@ struct HomeScreenView: View {
         .fullScreenCover(item: Binding(get: { editingWidget.map(IdentifiedUUID.init) }, set: { editingWidget = $0?.id })) { w in
             WidgetEditSheet(itemID: w.id).retroModalChrome()
         }
+        .retroAlert(unconfiguredApp.map { LF("%@ 실행 주소가 없습니다", store.name(for: $0)) } ?? "",
+                    isPresented: Binding(get: { unconfiguredApp != nil }, set: { if !$0 { unconfiguredApp = nil } }),
+                    message: L("스크린샷에서 가져온 앱입니다. iOS는 다른 앱의 실행 주소를 알려 주지 않으니 아이콘 편집에서 주소(예: myapp:// 또는 웹 주소)를 입력하세요."),
+                    buttons: [RetroAlertButton(title: L("닫기")), RetroAlertButton(title: L("주소 설정"), isPreferred: true) {
+                        let app = unconfiguredApp
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { editingApp = app }
+                    }])
         .retroAlert(launchError.map { LF("%@ 앱을 열 수 없습니다", $0.displayName) } ?? "",
                     isPresented: Binding(get: { launchError != nil }, set: { if !$0 { launchError = nil } }),
                     message: L("앱이 설치되어 있지 않거나 실행 링크를 지원하지 않습니다."),
@@ -440,14 +447,24 @@ struct HomeScreenView: View {
 
     func launch(_ app: AppID, from anchor: UnitPoint) {
         if let builtin = app.builtin {
-            router.open(builtin, anchor: anchor)
+            if store.layout.overrides[app.raw]?.openSystemApp == true {
+                Task {
+                    // Fall back to the classic app if iOS can't open the system one.
+                    if !(await ExternalAppLauncher.openSystemVersion(of: builtin)) { router.open(builtin, anchor: anchor) }
+                }
+            } else {
+                router.open(builtin, anchor: anchor)
+            }
         } else if let ext = store.external(app) {
+            if ext.scheme == nil && ext.webURL == nil { unconfiguredApp = app; return }
             Task {
                 let ok = await ExternalAppLauncher.open(ext)
                 if !ok { launchError = ext }
             }
         }
     }
+
+    @State private var unconfiguredApp: AppID?
 
     private var launchErrorButtons: [RetroAlertButton] {
         guard let ext = launchError else { return [] }

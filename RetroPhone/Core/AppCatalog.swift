@@ -17,6 +17,23 @@ enum BuiltinApp: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// URL that opens the real Apple app (community-known schemes; nil where none exists).
+    var systemURL: String? {
+        switch self {
+        case .messages: "sms:"
+        case .maps: "maps://"
+        case .calendar: "calshow://"
+        case .notes: "mobilenotes://"
+        case .weather: "weather://"
+        case .music: "music://"
+        case .photos: "photos-redirect://"
+        case .browser: "x-web-search://"
+        case .clock: "clock-worldclock://"
+        case .voiceMemos: "voicememos://"
+        default: nil
+        }
+    }
+
     var art: IconArt {
         switch self {
         case .phone: .phone; case .messages: .messages; case .contacts: .contacts
@@ -66,6 +83,10 @@ struct ExternalApp: Codable, Hashable, Identifiable {
     var appStoreID: String?
     var verification: SchemeVerification
     var art: IconArt
+    /// Extra spellings recognized by the screenshot importer (OCR), e.g. "카톡".
+    var aliases: [String]? = nil
+    /// Apple system app (opened via its system URL scheme).
+    var isSystem: Bool? = nil
 
     var displayName: String { Localizer.shared.language == .ko ? nameKo : nameEn }
 }
@@ -74,7 +95,10 @@ enum AppCatalog {
     /// Priority external apps from the spec. Schemes were checked against public vendor
     /// documentation on 2026-11-24 (see docs/EXTERNAL_APPS.md): only NAVER Map and Spotify are
     /// documented by the vendor; `community` entries are best-effort and fall back to the web link.
-    static let externalApps: [ExternalApp] = [
+    static let externalApps: [ExternalApp] = priorityApps + moreApps + systemApps
+
+    /// The 12 apps named in the original spec.
+    static let priorityApps: [ExternalApp] = [
         ExternalApp(id: "ext.kakaotalk", nameKo: "카카오톡", nameEn: "KakaoTalk", scheme: "kakaotalk://",
                     webURL: "https://www.kakaocorp.com/page/service/service/KakaoTalk", appStoreID: "362057947",
                     verification: .community, art: .chatBubbleYellow),

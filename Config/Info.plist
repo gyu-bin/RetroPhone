@@ -20,11 +20,48 @@
 		<string>nmap</string>
 		<string>kakaomap</string>
 		<string>supertoss</string>
-		<string>chatgpt</string>
 		<string>googlegmail</string>
 		<string>nflx</string>
 		<string>coupang</string>
 		<string>spotify</string>
+		<string>line</string>
+		<string>whatsapp</string>
+		<string>tg</string>
+		<string>discord</string>
+		<string>fb</string>
+		<string>twitter</string>
+		<string>pinterest</string>
+		<string>reddit</string>
+		<string>linkedin</string>
+		<string>bandapp</string>
+		<string>slack</string>
+		<string>notion</string>
+		<string>zoomus</string>
+		<string>msteams</string>
+		<string>ms-outlook</string>
+		<string>google</string>
+		<string>googlechrome</string>
+		<string>comgooglemaps</string>
+		<string>googledrive</string>
+		<string>papago</string>
+		<string>youtubemusic</string>
+		<string>melonapp</string>
+		<string>genie</string>
+		<string>tving</string>
+		<string>coupangplay</string>
+		<string>disneyplus</string>
+		<string>naverwebtoon</string>
+		<string>kakaobank</string>
+		<string>kakaopay</string>
+		<string>baemin</string>
+		<string>coupangeats</string>
+		<string>yogiyo</string>
+		<string>towneers</string>
+		<string>bunjang</string>
+		<string>kakaot</string>
+		<string>tmap</string>
+		<string>uber</string>
+		<string>airbnb</string>
 	</array>
 	<key>NSAppleMusicUsageDescription</key>
 	<string>음악 보관함을 보고 재생하려면 미디어 보관함 접근이 필요합니다.</string>

@@ -165,6 +165,7 @@ struct WallpaperSettingsView: View {
 struct HomeSettingsView: View {
     @Environment(AppRouter.self) private var router
     @State private var showAdd = false
+    @State private var showImport = false
     @State private var confirmReset = false
     @State private var confirmIcons = false
     private var store: LayoutStore { LayoutStore.shared }
@@ -177,6 +178,7 @@ struct HomeSettingsView: View {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { withAnimation { router.isEditingHome = true } }
                 } label: { TableRow(title: L("홈 화면 편집"), chevron: true) }.buttonStyle(.plain)
                 Button { showAdd = true } label: { TableRow(title: L("앱·위젯 추가"), chevron: true) }.buttonStyle(.plain)
+                Button { showImport = true } label: { TableRow(title: L("내 아이폰 홈 화면 가져오기"), systemIcon: "photo.stack", chevron: true) }.buttonStyle(.plain)
                 ToggleRow(title: L("클래식 베젤 (위·아래)"), isOn: binding(\.classicBezel))
                 ToggleRow(title: L("가상 홈 버튼 표시"), isOn: binding(\.showHomeButton))
             }
@@ -207,6 +209,7 @@ struct HomeSettingsView: View {
             }
         }
         .fullScreenCover(isPresented: $showAdd) { AddToHomeSheet().retroModalChrome() }
+        .fullScreenCover(isPresented: $showImport) { HomeImportView() }
         .retroAlert(L("홈 화면 배치를 초기화할까요?"), isPresented: $confirmReset, message: L("폴더와 위치가 기본값으로 돌아갑니다. 추가한 바로가기는 유지됩니다."),
                     buttons: [RetroAlertButton(title: L("취소")), RetroAlertButton(title: L("초기화"), isPreferred: true) {
                         store.update { l in
@@ -225,7 +228,9 @@ struct HomeSettingsView: View {
     }
 
     private func availabilityText(_ ext: ExternalApp) -> String {
-        switch ExternalAppLauncher.availability(of: ext) {
+        if ext.isSystem == true { return L("iOS 앱") }
+        if ext.scheme == nil && ext.webURL == nil { return L("주소 없음") }
+        return switch ExternalAppLauncher.availability(of: ext) {
         case .installed: L("설치됨")
         case .notInstalled: L("미설치")
         case .unknown: L("웹 링크")

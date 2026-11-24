@@ -71,6 +71,8 @@ struct AppOverride: Codable, Hashable {
     var name: String?
     var customIconFile: String?
     var art: IconArt?
+    /// Built-in apps only: open the real Apple app instead of the classic re-implementation.
+    var openSystemApp: Bool? = nil
 }
 
 /// Where an item lands on a page grid.

@@ -24,6 +24,24 @@ enum ExternalAppLauncher {
         return false
     }
 
+    /// Catalog apps whose URL scheme iOS reports as openable. Only the ≤50 schemes declared in
+    /// LSApplicationQueriesSchemes can be checked; the result never leaves the device.
+    static func installedCatalogApps() -> [ExternalApp] {
+        let probed = Set(AppCatalog.probedSchemes)
+        return AppCatalog.externalApps.filter { app in
+            guard app.isSystem != true, let scheme = app.scheme, let url = URL(string: scheme),
+                  let root = url.scheme, probed.contains(root) else { return false }
+            return UIApplication.shared.canOpenURL(url)
+        }
+    }
+
+    /// Opens the real Apple app instead of RetroPhone's classic version (when the user chose so).
+    @discardableResult
+    static func openSystemVersion(of app: BuiltinApp) async -> Bool {
+        guard let s = app.systemURL, let url = URL(string: s) else { return false }
+        return await UIApplication.shared.open(url)
+    }
+
     static func openAppStore(_ app: ExternalApp) {
         guard let id = app.appStoreID, let url = URL(string: "itms-apps://apps.apple.com/app/id\(id)") else { return }
         UIApplication.shared.open(url)

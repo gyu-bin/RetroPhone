@@ -11,14 +11,14 @@ final class ScreenshotImporterTests: XCTestCase {
             Label(text: "캘린더", center: CGPoint(x: 0.12, y: 0.21)),
             Label(text: "KakaoTalk", center: CGPoint(x: 0.38, y: 0.205)),
             Label(text: "Instagram", center: CGPoint(x: 0.12, y: 0.32)),
-            Label(text: "당근", center: CGPoint(x: 0.38, y: 0.32)),
+            Label(text: "모르는앱", center: CGPoint(x: 0.38, y: 0.32)),
             Label(text: "Safari", center: CGPoint(x: 0.12, y: 0.93)),
             Label(text: "전화", center: CGPoint(x: 0.38, y: 0.93)),
         ]
         let d = ScreenshotLayoutImporter.draft(from: labels)
         XCTAssertEqual(d.pageApps, ["builtin.calendar", "ext.kakaotalk", "builtin.camera", "ext.instagram"])
         XCTAssertEqual(d.dockApps, ["builtin.browser", "builtin.phone"])
-        XCTAssertEqual(d.unmatched, ["당근"])
+        XCTAssertEqual(d.unmatched, ["모르는앱"])
     }
 
     func testLayoutFromDraftKeepsAllBuiltinsReachable() {
@@ -27,6 +27,77 @@ final class ScreenshotImporterTests: XCTestCase {
         XCTAssertEqual(l.dock, ["builtin.phone"])
         XCTAssertEqual(l.pages[0].first?.appID, "ext.kakaotalk")
         XCTAssertTrue(BuiltinApp.allCases.allSatisfy { l.placedApps.contains($0.appID) })
+    }
+}
+
+final class HomeImportTests: XCTestCase {
+    typealias Label = ScreenshotLayoutImporter.Label
+
+    private func label(_ t: String, x: CGFloat, y: CGFloat, w: CGFloat = 0.12) -> Label {
+        Label(text: t, center: CGPoint(x: x, y: y), box: CGRect(x: x - w / 2, y: y - 0.008, width: w, height: 0.016))
+    }
+
+    func testKeepsOnlyGridLabelsInReadingOrder() {
+        let labels = [
+            label("오후 6:40", x: 0.2, y: 0.03),                 // status bar
+            label("서울 12°", x: 0.3, y: 0.2, w: 0.2),            // widget text
+            label("카카오톡", x: 0.386, y: 0.45),
+            label("배민", x: 0.159, y: 0.45),
+            label("검색", x: 0.5, y: 0.82),                       // search pill
+            label("내가 만든 앱", x: 0.841, y: 0.58),
+            label("화요일 일정이 없습니다", x: 0.5, y: 0.3, w: 0.6), // widget
+            label("Safari", x: 0.159, y: 0.93),                  // dock band
+        ]
+        let kept = ScreenshotLayoutImporter.appLabels(labels).map(\.text)
+        XCTAssertEqual(kept, ["배민", "카카오톡", "내가 만든 앱"])
+    }
+
+    func testMatchingAliasesAndFolders() {
+        XCTAssertEqual(ScreenshotLayoutImporter.match("배민"), "ext.baemin")
+        XCTAssertEqual(ScreenshotLayoutImporter.match("Safari"), "builtin.browser")
+        XCTAssertEqual(ScreenshotLayoutImporter.match("App Store"), "sys.appstore")
+        XCTAssertNil(ScreenshotLayoutImporter.match("내가 만든 앱"))
+        XCTAssertTrue(ScreenshotLayoutImporter.isLikelyFolder("유틸리티"))
+        XCTAssertTrue(ScreenshotLayoutImporter.isLikelyFolder("🎮"))
+        XCTAssertFalse(ScreenshotLayoutImporter.isLikelyFolder("카카오톡"))
+    }
+
+    func testIconCropSitsAboveLabelAndInsideImage() {
+        let size = CGSize(width: 1179, height: 2556)
+        let l = label("카카오톡", x: 0.386, y: 0.45)
+        let r = ScreenshotLayoutImporter.iconRect(above: l, imageSize: size)
+        XCTAssertLessThan(r.maxY, l.box.minY * size.height)
+        XCTAssertEqual(r.midX, 0.386 * size.width, accuracy: 2)
+        XCTAssertEqual(r.width, r.height, accuracy: 1)
+        XCTAssertTrue(CGRect(origin: .zero, size: size).contains(ScreenshotLayoutImporter.dockStripRect(imageSize: size)))
+    }
+
+    /// End-to-end on a real iOS 27 home screen (simulator SpringBoard, Korean UI).
+    func testRealHomeScreenScreenshot() async throws {
+        let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "ios-home-page1", withExtension: "png"))
+        let image = try XCTUnwrap(UIImage(contentsOfFile: url.path))
+        let labels = try await ScreenshotLayoutImporter.recognizeLabels(in: image)
+        let apps = ScreenshotLayoutImporter.appLabels(labels)
+        let texts = apps.map(\.text)
+        for expected in ["Fitness", "Watch", "미리 알림", "파일", "미리보기", "유틸리티", "연락처", "바이블틈"] {
+            XCTAssertTrue(texts.contains(expected), "missing \(expected) in \(texts)")
+        }
+        XCTAssertFalse(texts.contains("검색"), "search pill filtered")
+        XCTAssertFalse(texts.contains("9:41"), "status bar filtered")
+        XCTAssertEqual(Array(texts.prefix(4)), ["Fitness", "Watch", "미리 알림", "파일"], "reading order")
+        XCTAssertEqual(ScreenshotLayoutImporter.match("미리 알림"), "sys.reminders")
+        XCTAssertEqual(ScreenshotLayoutImporter.match("연락처"), "builtin.contacts")
+        XCTAssertTrue(ScreenshotLayoutImporter.isLikelyFolder("유틸리티"))
+        // The icon crop above "파일" should be mostly the white Files tile (bright), not wallpaper.
+        let size = CGSize(width: image.cgImage!.width, height: image.cgImage!.height)
+        let files = try XCTUnwrap(apps.first { $0.text == "파일" })
+        let crop = try XCTUnwrap(ScreenshotLayoutImporter.crop(image, to: ScreenshotLayoutImporter.iconRect(above: files, imageSize: size)))
+        XCTAssertGreaterThan(crop.averageBrightness, 0.6)
+    }
+
+    func testCatalogHasNoDuplicateNames() {
+        let names = AppCatalog.externalApps.map { ScreenshotLayoutImporter.normalize($0.nameKo) }
+        XCTAssertEqual(Set(names).count, names.count)
     }
 }
 
@@ -120,11 +191,12 @@ final class ExternalAppTests: XCTestCase {
 
     func testCatalogSchemesAreDeclaredForCanOpenURL() throws {
         let declared = Bundle.main.object(forInfoDictionaryKey: "LSApplicationQueriesSchemes") as? [String] ?? []
-        for app in AppCatalog.externalApps {
+        for app in AppCatalog.externalApps where app.isSystem != true {
             guard let scheme = app.scheme, let s = URL(string: scheme)?.scheme else { continue }
             XCTAssertTrue(declared.contains(s), "\(s) missing from LSApplicationQueriesSchemes")
         }
         XCTAssertLessThanOrEqual(declared.count, 50, "iOS limits query schemes to 50")
+        XCTAssertEqual(Set(declared), Set(AppCatalog.probedSchemes), "probe list matches Info.plist")
     }
 
     func testCatalogIDsUnique() {
@@ -172,5 +244,19 @@ final class PersistenceTests: XCTestCase {
         let a = WallpaperRenderer.render(.droplets, size: CGSize(width: 40, height: 80)).pngData()
         let b = WallpaperRenderer.render(.droplets, size: CGSize(width: 40, height: 80)).pngData()
         XCTAssertEqual(a, b)
+    }
+}
+
+private extension UIImage {
+    var averageBrightness: CGFloat {
+        guard let cg = cgImage else { return 0 }
+        let w = 16, h = 16
+        var px = [UInt8](repeating: 0, count: w * h * 4)
+        let ctx = CGContext(data: &px, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+        var sum = 0.0
+        for i in stride(from: 0, to: px.count, by: 4) { sum += (Double(px[i]) + Double(px[i + 1]) + Double(px[i + 2])) / 3 }
+        return CGFloat(sum / Double(w * h) / 255)
     }
 }

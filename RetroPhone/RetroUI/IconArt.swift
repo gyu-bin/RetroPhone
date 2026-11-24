@@ -12,6 +12,12 @@ enum IconArt: String, Codable, CaseIterable, Identifiable {
     case wallet, robot, envelope, filmReel, shoppingBag, vinyl
     // Extra choices for user customization
     case generic, game, book, heart, star, chart, gift, globe
+    // Generic metaphors for the expanded app catalog (glossy tile + symbol)
+    case chatGreen, chatBlue, chatPurple, chatDark, musicGreen, musicPurple, playRed
+    case bankYellow, bankBlue, bankNavy, payYellow, carrot, delivery, taxi, navigation, plane, bed, house
+    case cart, tshirt, webtoon, docs, briefcase, videoCall, mailBlue, checklist, folderBlue, layers
+    case podcast, tvDark, radar, appStore, walletDark, books, translate, news, coffee, pin, people
+    case searchBlue, cloudDrive, ticket, sparkle, bolt, atSign
 
     var id: String { rawValue }
 }
@@ -153,6 +159,17 @@ struct IconArtwork: View {
             ZStack { vgrad(0xFF7272, 0xC0141E); Glyph(name: "gift.fill", size: s * 0.56) }
         case .globe:
             ZStack { vgrad(0x67C0FF, 0x0D5FC9); Glyph(name: "globe.asia.australia.fill", size: s * 0.6, colors: [Color(hex: 0xC8F5B8), Color(hex: 0x5FBF45)]) }
+        default:
+            if let t = SymbolTile.table[art] {
+                ZStack {
+                    vgrad(t.top, t.bottom)
+                    Glyph(name: t.symbol, size: s * t.scale,
+                          colors: [Color(hex: t.glyphTop), Color(hex: t.glyphBottom)],
+                          shadow: .black.opacity(t.glyphTop == 0xFFFFFF ? 0.45 : 0.25))
+                }
+            } else {
+                ZStack { vgrad(0x9AB0CF, 0x4C6489); Glyph(name: "app.dashed", size: s * 0.5) }
+            }
         }
     }
 
@@ -467,4 +484,63 @@ struct Triangle: Shape {
             p.closeSubpath()
         }
     }
+}
+
+/// Table-driven glossy tiles: gradient background + SF Symbol glyph. Used for the large app catalog so
+/// every third-party app gets a consistent 2010-style metaphor without brand logos.
+struct SymbolTile {
+    var top: UInt32
+    var bottom: UInt32
+    var symbol: String
+    var glyphTop: UInt32 = 0xFFFFFF
+    var glyphBottom: UInt32 = 0xDCDCDC
+    var scale: CGFloat = 0.56
+
+    static let table: [IconArt: SymbolTile] = [
+        .chatGreen: .init(top: 0x7CE07A, bottom: 0x1F9E3A, symbol: "bubble.left.fill"),
+        .chatBlue: .init(top: 0x6FC2FF, bottom: 0x1A6FD8, symbol: "paperplane.fill"),
+        .chatPurple: .init(top: 0x9D8CFF, bottom: 0x4A3AC8, symbol: "bubble.left.and.bubble.right.fill"),
+        .chatDark: .init(top: 0x4A4A4A, bottom: 0x111111, symbol: "at", scale: 0.5),
+        .musicGreen: .init(top: 0x6BEA7A, bottom: 0x10A43A, symbol: "music.note.list"),
+        .musicPurple: .init(top: 0xC88CFF, bottom: 0x6A2AC8, symbol: "music.quarternote.3"),
+        .playRed: .init(top: 0xFF6A5A, bottom: 0xC8160B, symbol: "play.circle.fill", scale: 0.6),
+        .bankYellow: .init(top: 0xFFE45C, bottom: 0xF2B800, symbol: "building.columns.fill", glyphTop: 0x4A3418, glyphBottom: 0x2A1C08),
+        .bankBlue: .init(top: 0x5C9CFF, bottom: 0x1448C8, symbol: "building.columns.fill"),
+        .bankNavy: .init(top: 0x4A5C8A, bottom: 0x1A2448, symbol: "wonsign.circle.fill", glyphTop: 0xFFE28A, glyphBottom: 0xE8B830),
+        .payYellow: .init(top: 0xFFE45C, bottom: 0xF2B800, symbol: "creditcard.fill", glyphTop: 0x4A3418, glyphBottom: 0x2A1C08),
+        .carrot: .init(top: 0xFFA25C, bottom: 0xF06A10, symbol: "carrot.fill"),
+        .delivery: .init(top: 0x5CE8D8, bottom: 0x10B0A0, symbol: "scooter"),
+        .taxi: .init(top: 0xFFDC4A, bottom: 0xE8A800, symbol: "car.fill", glyphTop: 0x2A2A2A, glyphBottom: 0x111111),
+        .navigation: .init(top: 0x6CB4FF, bottom: 0x1858D8, symbol: "location.north.circle.fill", scale: 0.6),
+        .plane: .init(top: 0xFF7A8A, bottom: 0xD8243C, symbol: "airplane"),
+        .bed: .init(top: 0xFF7AB0, bottom: 0xD8246A, symbol: "bed.double.fill"),
+        .house: .init(top: 0xFFC25C, bottom: 0xF08A10, symbol: "house.fill"),
+        .cart: .init(top: 0xFF6A6A, bottom: 0xC8141E, symbol: "cart.fill"),
+        .tshirt: .init(top: 0x5A5A5A, bottom: 0x141414, symbol: "tshirt.fill"),
+        .webtoon: .init(top: 0x6CE87A, bottom: 0x10A43A, symbol: "book.pages.fill"),
+        .docs: .init(top: 0xFAFAFA, bottom: 0xD2D2D2, symbol: "doc.text.fill", glyphTop: 0x3A3A3A, glyphBottom: 0x111111),
+        .briefcase: .init(top: 0x8A6CE0, bottom: 0x40229A, symbol: "briefcase.fill"),
+        .videoCall: .init(top: 0x7CE07A, bottom: 0x1F9E3A, symbol: "video.fill"),
+        .mailBlue: .init(top: 0x7CC4FF, bottom: 0x1A6AD8, symbol: "envelope.fill"),
+        .checklist: .init(top: 0xFAFAFA, bottom: 0xD8D8D8, symbol: "checklist", glyphTop: 0xF06A10, glyphBottom: 0xC84A00),
+        .folderBlue: .init(top: 0xFAFAFA, bottom: 0xD8D8D8, symbol: "folder.fill", glyphTop: 0x5CA8FF, glyphBottom: 0x1A6AD8),
+        .layers: .init(top: 0x7A8CFF, bottom: 0xD84AC8, symbol: "square.stack.3d.up.fill"),
+        .podcast: .init(top: 0xC86CFF, bottom: 0x7A1AD8, symbol: "mic.fill"),
+        .tvDark: .init(top: 0x3A3A3A, bottom: 0x0A0A0A, symbol: "tv.fill"),
+        .radar: .init(top: 0x7CE07A, bottom: 0x1F9E3A, symbol: "dot.radiowaves.left.and.right"),
+        .appStore: .init(top: 0x6CC4FF, bottom: 0x1A6AD8, symbol: "square.and.arrow.down.fill"),
+        .walletDark: .init(top: 0x3A3A3A, bottom: 0x0A0A0A, symbol: "wallet.bifold.fill", glyphTop: 0xFFD27A, glyphBottom: 0xE89A20),
+        .books: .init(top: 0xFFA84A, bottom: 0xE86A00, symbol: "book.fill"),
+        .translate: .init(top: 0x5CA8FF, bottom: 0x1448C8, symbol: "character.bubble.fill"),
+        .news: .init(top: 0xFAFAFA, bottom: 0xD8D8D8, symbol: "newspaper.fill", glyphTop: 0x3A3A3A, glyphBottom: 0x111111),
+        .coffee: .init(top: 0x3ABA6A, bottom: 0x0A6A3A, symbol: "cup.and.saucer.fill"),
+        .pin: .init(top: 0xFF5A5A, bottom: 0xC8101A, symbol: "pin.fill"),
+        .people: .init(top: 0x5C8CFF, bottom: 0x1A48C8, symbol: "person.2.fill"),
+        .searchBlue: .init(top: 0xFAFAFA, bottom: 0xD8D8D8, symbol: "magnifyingglass", glyphTop: 0x3A86FF, glyphBottom: 0x1448C8),
+        .cloudDrive: .init(top: 0xFAFAFA, bottom: 0xD8D8D8, symbol: "externaldrive.fill.badge.icloud", glyphTop: 0x3ABA6A, glyphBottom: 0x1A8A3A),
+        .ticket: .init(top: 0xFF8A5C, bottom: 0xE84A10, symbol: "ticket.fill"),
+        .sparkle: .init(top: 0x2A2A3A, bottom: 0x0A0A14, symbol: "sparkles", glyphTop: 0xB8E0FF, glyphBottom: 0x6AA8FF),
+        .bolt: .init(top: 0xFFE45C, bottom: 0xF2B800, symbol: "bolt.fill", glyphTop: 0x3A2A10, glyphBottom: 0x1A1408),
+        .atSign: .init(top: 0x3A3A3A, bottom: 0x0A0A0A, symbol: "at.circle.fill"),
+    ]
 }

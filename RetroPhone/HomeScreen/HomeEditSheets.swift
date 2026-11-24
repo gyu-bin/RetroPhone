@@ -177,6 +177,9 @@ struct IconEditSheet: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var customFile: String?
     @State private var removeConfirm = false
+    @State private var launchURL = ""
+    @State private var openSystem = false
+    @State private var invalidURL = false
 
     private var store: LayoutStore { LayoutStore.shared }
 
@@ -195,6 +198,20 @@ struct IconEditSheet: View {
                             .font(.retro(17))
                             .padding(.horizontal, 10).frame(minHeight: 44)
                             .accessibilityIdentifier("iconNameField")
+                    }
+                    if app.raw.hasPrefix("custom.") {
+                        GroupedSection(header: L("실행 주소"), footer: L("앱의 URL 스킴(예: myapp://) 또는 웹 주소. 앱 개발사 문서나 단축어 앱의 'URL 열기'로 확인할 수 있습니다.")) {
+                            TextField("myapp://", text: $launchURL)
+                                .font(.retro(17)).keyboardType(.URL)
+                                .textInputAutocapitalization(.never).autocorrectionDisabled()
+                                .padding(.horizontal, 10).frame(minHeight: 44)
+                                .accessibilityIdentifier("iconURLField")
+                        }
+                    }
+                    if let builtin = app.builtin, builtin.systemURL != nil {
+                        GroupedSection(footer: L("켜면 이 아이콘이 RetroPhone의 클래식 앱 대신 실제 iOS 앱을 엽니다(예: 메시지 기록 보기). 실제 앱의 디자인은 바뀌지 않습니다.")) {
+                            TableRow(title: L("iOS 기본 앱으로 열기"), accessory: { RetroToggle(isOn: $openSystem) })
+                        }
                     }
                     GroupedSection(header: L("사진으로 아이콘 만들기")) {
                         PhotosPicker(selection: $photoItem, matching: .images) {
@@ -225,6 +242,8 @@ struct IconEditSheet: View {
             name = o?.name ?? ""
             art = store.art(for: app)
             customFile = o?.customIconFile
+            openSystem = o?.openSystemApp ?? false
+            if let ext = store.layout.customApps.first(where: { $0.id == app }) { launchURL = ext.scheme ?? ext.webURL ?? "" }
         }
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
@@ -234,9 +253,25 @@ struct IconEditSheet: View {
                 }
             }
         }
+        .retroAlert(L("올바른 실행 주소가 아닙니다"), isPresented: $invalidURL, message: L("예: myapp:// 또는 https://example.com"))
     }
 
     private func save() {
+        if app.raw.hasPrefix("custom.") {
+            let text = launchURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            var scheme: String?, web: String?
+            if !text.isEmpty {
+                guard let url = ExternalAppLauncher.normalizedURL(text) else { invalidURL = true; return }
+                if url.hasPrefix("http") { web = url } else { scheme = url }
+            }
+            store.update { l in
+                if let i = l.customApps.firstIndex(where: { $0.id == app }) {
+                    l.customApps[i].scheme = scheme
+                    l.customApps[i].webURL = web
+                    l.customApps[i].verification = scheme == nil ? .webOnly : .community
+                }
+            }
+        }
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let defaultArt = AppCatalog.defaultArt(app, custom: store.layout.customApps)
         store.setOverride(app) { o in
@@ -244,6 +279,7 @@ struct IconEditSheet: View {
             o.art = art == defaultArt ? nil : art
             if let old = o.customIconFile, old != customFile { FileStore.deleteImage(old) }
             o.customIconFile = customFile
+            o.openSystemApp = (app.builtin != nil && openSystem) ? true : nil
         }
         Haptics.success()
         dismiss()

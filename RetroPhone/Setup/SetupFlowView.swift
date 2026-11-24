@@ -2,16 +2,16 @@ import SwiftUI
 import PhotosUI
 
 /// First-run setup. iOS does not let apps read the real home-screen arrangement, so the user
-/// builds their layout here (from defaults, a checklist, or a screenshot draft) and can edit later.
+/// rebuilds it here from screenshots (or starts from defaults plus detected apps) and can edit later.
 struct SetupFlowView: View {
     @Environment(AppRouter.self) private var router
     enum Step: Int { case welcome, apps, wallpaper, done }
     @State private var step: Step = .welcome
     @State private var selectedExternal: Set<AppID> = []
-    @State private var draft: ScreenshotLayoutImporter.Draft?
-    @State private var photoItem: PhotosPickerItem?
-    @State private var analyzing = false
-    @State private var importError = false
+    @State private var installed: [ExternalApp] = []
+    @State private var showImport = false
+    @State private var imported = false
+    @State private var wallpaperItem: PhotosPickerItem?
 
     private var settings: SettingsStore { SettingsStore.shared }
 
@@ -38,10 +38,14 @@ struct SetupFlowView: View {
             }
         }
         .background(PinstripeBackground().ignoresSafeArea())
-        .retroAlert(L("스크린샷을 분석하지 못했습니다"), isPresented: $importError, message: L("홈 화면 스크린샷인지 확인하세요."))
-        .onChange(of: photoItem) { _, item in
+        .onChange(of: wallpaperItem) { _, item in
             guard let item else { return }
-            Task { await analyze(item) }
+            Task {
+                guard let data = try? await item.loadTransferable(type: Data.self), let img = UIImage(data: data),
+                      let file = FileStore.saveImage(img, maxDimension: 2400) else { return }
+                settings.value.homeWallpaper = .custom(file: file)
+                settings.value.lockWallpaper = .custom(file: file)
+            }
         }
     }
 
@@ -78,31 +82,27 @@ struct SetupFlowView: View {
 
     private var apps: some View {
         VStack(spacing: 0) {
-            GroupedSection(header: L("스크린샷에서 가져오기 (베타)"),
-                           footer: L("실제 홈 화면 스크린샷의 앱 이름을 기기 안에서 인식해 배치 초안을 만듭니다. 아이콘·위젯·폴더 내용은 인식하지 못하므로 결과를 확인하고 수정하세요.")) {
-                PhotosPicker(selection: $photoItem, matching: .screenshots) {
-                    TableRow(title: analyzing ? L("분석 중…") : L("스크린샷 선택…"), systemIcon: "text.viewfinder", chevron: true)
+            GroupedSection(header: L("내 아이폰 그대로 (권장)"),
+                           footer: imported ? L("가져온 배치가 적용되었습니다. 홈 화면에서 언제든 편집할 수 있습니다.")
+                                            : L("실제 홈 화면을 페이지마다 스크린샷으로 찍어 두었다가 선택하면, 앱 이름과 위치를 기기 안에서 읽어 지금 쓰는 홈 화면을 2010년 스타일로 똑같이 만듭니다.")) {
+                Button { showImport = true } label: {
+                    TableRow(title: imported ? L("다시 가져오기…") : L("내 홈 화면 가져오기…"), systemIcon: "photo.stack", chevron: true,
+                             accessory: { if imported { Image(systemName: "checkmark").foregroundStyle(Color(hex: 0x385487)) } })
                 }
-                .disabled(analyzing)
-                if let draft {
-                    TableRow(title: L("인식된 앱"), detail: "\(draft.pageApps.count + draft.dockApps.count)")
-                    if !draft.unmatched.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(L("지원하지 않거나 인식하지 못한 이름")).font(.retro(13, .bold))
-                            Text(draft.unmatched.prefix(20).joined(separator: ", ")).font(.retro(13)).foregroundStyle(Color(hex: 0x6A6A6A))
-                        }
-                        .padding(10).frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    Button { self.draft = nil } label: { TableRow(title: L("초안 버리기"), destructive: true) }.buttonStyle(.plain)
-                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("setupImportHome")
             }
-            GroupedSection(header: L("외부 앱 추가"), footer: L("선택한 앱은 홈 화면 마지막 페이지에 추가됩니다. 앱이 설치되어 있지 않으면 웹 또는 App Store로 연결됩니다.")) {
-                ForEach(AppCatalog.externalApps) { ext in
+            GroupedSection(header: L("이 기기에 설치된 앱"),
+                           footer: L("RetroPhone이 아는 앱 중 이 기기에 설치된 것을 기기 안에서 찾았습니다. 선택한 앱은 홈 화면에 추가됩니다.")) {
+                if installed.isEmpty {
+                    TableRow(title: L("찾은 앱 없음"))
+                }
+                ForEach(installed) { ext in
                     Button {
                         if selectedExternal.contains(ext.id) { selectedExternal.remove(ext.id) } else { selectedExternal.insert(ext.id) }
                     } label: {
                         TableRow(title: ext.displayName, icon: ext.art, accessory: {
-                            if selectedExternal.contains(ext.id) || draftContains(ext.id) {
+                            if selectedExternal.contains(ext.id) {
                                 Image(systemName: "checkmark").foregroundStyle(Color(hex: 0x385487))
                             }
                         })
@@ -112,14 +112,25 @@ struct SetupFlowView: View {
                 }
             }
         }
-    }
-
-    private func draftContains(_ id: AppID) -> Bool {
-        guard let draft else { return false }
-        return draft.pageApps.contains(id) || draft.dockApps.contains(id)
+        .task {
+            guard installed.isEmpty else { return }
+            installed = ExternalAppLauncher.installedCatalogApps()
+            selectedExternal = Set(installed.map(\.id))
+        }
+        .fullScreenCover(isPresented: $showImport) {
+            HomeImportView(onFinished: { imported = true })
+        }
     }
 
     private var wallpaper: some View {
+        VStack(spacing: 0) {
+        GroupedSection(header: L("내 배경화면")) {
+            PhotosPicker(selection: $wallpaperItem, matching: .images) {
+                TableRow(title: L("사진에서 선택…"), systemIcon: "photo.on.rectangle", chevron: true, accessory: {
+                    if case .custom = settings.value.homeWallpaper { Image(systemName: "checkmark").foregroundStyle(Color(hex: 0x385487)) }
+                })
+            }
+        }
         GroupedSection(header: L("잠금화면과 홈 화면")) {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
                 ForEach(BuiltinWallpaper.allCases) { w in
@@ -138,6 +149,7 @@ struct SetupFlowView: View {
                 }
             }
             .padding(10)
+        }
         }
     }
 
@@ -167,9 +179,9 @@ struct SetupFlowView: View {
 
     private func finish() {
         let store = LayoutStore.shared
-        var layout = draft.map { ScreenshotLayoutImporter.layout(from: $0) } ?? HomeLayout.default
-        // Keep catalog order for added apps.
-        for ext in AppCatalog.externalApps where selectedExternal.contains(ext.id) { layout.addApp(ext.id) }
+        // An imported layout is kept as-is; otherwise start from the default layout.
+        var layout = imported ? store.layout : HomeLayout.default
+        for ext in installed where selectedExternal.contains(ext.id) { layout.addApp(ext.id) }
         store.layout = layout
         store.flush()
         settings.value.setupCompleted = true
@@ -177,17 +189,4 @@ struct SetupFlowView: View {
         withAnimation(.easeInOut(duration: 0.4)) { router.screen = .lock }
     }
 
-    private func analyze(_ item: PhotosPickerItem) async {
-        analyzing = true
-        defer { analyzing = false }
-        guard let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data),
-              let labels = try? await ScreenshotLayoutImporter.recognizeLabels(in: image) else {
-            importError = true
-            return
-        }
-        let d = ScreenshotLayoutImporter.draft(from: labels)
-        if d.pageApps.isEmpty && d.dockApps.isEmpty { importError = true; return }
-        draft = d
-        Haptics.success()
-    }
 }
