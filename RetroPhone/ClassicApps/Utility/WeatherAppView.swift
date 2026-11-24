@@ -268,6 +268,8 @@ private struct WeatherFrontSide: View {
                 EmbossedText(text: message, size: 16)
                 GlossyButton(title: L("다시 시도"), tint: .gray) { service.refresh() }
                     .frame(maxWidth: 220)
+                GlossyButton(title: L("도시 선택"), tint: .blue) { flip() }
+                    .frame(maxWidth: 220)
             default:
                 ProgressView().tint(.white)
                 EmbossedText(text: L("날씨 불러오는 중…"), size: 15)

@@ -26,6 +26,8 @@ struct PhotoViewer: View {
     @State private var working = false
     @State private var shareThumbnail: UIImage?
     @Environment(\.deviceInsets) private var insets
+    /// Non-zero when the classic bezel is on: the app area already sits between status bar and chin.
+    @Environment(\.bezelPadding) private var bezelPadding
 
     init(context: PhotoViewerContext, barsVisible: Binding<Bool>, onClose: @escaping () -> Void) {
         self.context = context
@@ -93,7 +95,7 @@ struct PhotoViewer: View {
     private var bars: some View {
         VStack(spacing: 0) {
             // The root draws the translucent status bar in this band.
-            Color.clear.frame(height: max(20, insets.top))
+            Color.clear.frame(height: bezelPadding.top > 0 ? 0 : max(20, insets.top))
             ClassicNavBar(title: LF("%d/%d", currentIndex + 1, count), style: .blackTranslucent,
                           leading: {
                               ClassicBarButton(title: context.albumTitle, kind: .back, barStyle: .blackTranslucent) { onClose() }
@@ -118,7 +120,7 @@ struct PhotoViewer: View {
                     showWallpaperSheet = true
                 }
             }
-            Color.black.opacity(0.5).frame(height: insets.bottom)
+            Color.black.opacity(0.5).frame(height: bezelPadding.bottom > 0 ? 0 : insets.bottom)
         }
     }
 
@@ -240,6 +242,8 @@ final class ZoomingScrollView: UIScrollView, UIScrollViewDelegate {
         let singleTap = UITapGestureRecognizer(target: self, action: #selector(handleSingleTap))
         singleTap.require(toFail: doubleTap)
         addGestureRecognizer(singleTap)
+        // Unzoomed, a horizontal swipe must reach the pager (next / previous photo), not this view.
+        panGestureRecognizer.isEnabled = false
     }
 
     required init?(coder: NSCoder) {
@@ -270,6 +274,7 @@ final class ZoomingScrollView: UIScrollView, UIScrollViewDelegate {
 
     private func layoutImage() {
         zoomScale = 1
+        panGestureRecognizer.isEnabled = false
         let available = bounds.size
         guard available.width > 0, available.height > 0 else { return }
         var fitted = available
@@ -294,6 +299,7 @@ final class ZoomingScrollView: UIScrollView, UIScrollViewDelegate {
     func scrollViewDidZoom(_ scrollView: UIScrollView) {
         centerImage()
         let isZoomed = zoomScale > minimumZoomScale + 0.01
+        panGestureRecognizer.isEnabled = isZoomed
         guard isZoomed != reportedZoomed else { return }
         reportedZoomed = isZoomed
         let callback = onZoomChange

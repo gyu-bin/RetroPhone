@@ -28,7 +28,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
 
     /// Returns a (coarse) current location, or nil if denied / unavailable.
-    func currentLocation(accuracy: CLLocationAccuracy = kCLLocationAccuracyKilometer) async -> CLLocation? {
+    func currentLocation(accuracy: CLLocationAccuracy = kCLLocationAccuracyKilometer, timeout: TimeInterval = 15) async -> CLLocation? {
         if isDenied { return nil }
         if let loc = location, loc.timestamp.timeIntervalSinceNow > -600, loc.horizontalAccuracy <= max(accuracy, 3000) {
             return loc
@@ -38,6 +38,13 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
             waiters.append(cont)
             if authorization == .notDetermined { manager.requestWhenInUseAuthorization() }
             else { manager.requestLocation() }
+            // Never wait forever: Core Location may not call back at all (e.g. the permission prompt
+            // can't be shown, or no fix arrives). Fall back to the system's last known location.
+            DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
+                guard let self, !self.waiters.isEmpty else { return }
+                if self.lastError == nil { self.lastError = L("위치를 확인할 수 없습니다") }
+                self.resume(self.manager.location ?? self.location)
+            }
         }
     }
 
@@ -47,10 +54,24 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         w.forEach { $0.resume(returning: loc) }
     }
 
-    func reverseGeocode(_ loc: CLLocation) async -> String? {
-        let placemarks = try? await CLGeocoder().reverseGeocodeLocation(loc, preferredLocale: Localizer.shared.language.locale)
-        let p = placemarks?.first
-        return p?.locality ?? p?.subAdministrativeArea ?? p?.administrativeArea
+    /// Place name for a location; gives up after `timeout` so a stalled lookup never blocks the weather.
+    func reverseGeocode(_ loc: CLLocation, timeout: TimeInterval = 6) async -> String? {
+        let geocoder = CLGeocoder()
+        let locale = Localizer.shared.language.locale
+        return await withTaskGroup(of: String?.self) { group in
+            group.addTask { @MainActor in
+                let p = (try? await geocoder.reverseGeocodeLocation(loc, preferredLocale: locale))?.first
+                return p?.locality ?? p?.subAdministrativeArea ?? p?.administrativeArea
+            }
+            group.addTask { @MainActor in
+                try? await Task.sleep(for: .seconds(timeout))
+                geocoder.cancelGeocode()   // makes the lookup above finish with an error
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
     }
 
     // MARK: CLLocationManagerDelegate (delivered on the main thread because the manager was created there)
