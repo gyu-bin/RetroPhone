@@ -95,6 +95,9 @@ struct HomeScreenView: View {
         .onChange(of: itemGestureActive) { _, active in
             // A cancelled gesture never calls onEnded; finish the drag where the finger last was.
             if !active, drag.isActive, let m = drag.metrics { drop(metrics: m) }
+            // Finger lifted (or the gesture was swapped out on entering edit mode): only the lift
+            // itself must be ignored, not the user's next real tap.
+            if !active { clearSuppressSoon(after: 0.12) }
         }
         .onChange(of: store.layout.pages.count) { _, count in
             if router.currentPage >= count && !drag.isActive { router.currentPage = max(0, count - 1) }
@@ -342,8 +345,8 @@ struct HomeScreenView: View {
         )
     }
 
-    private func clearSuppressSoon() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { suppressNextTap = false }
+    private func clearSuppressSoon(after delay: Double = 0.35) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { suppressNextTap = false }
     }
 
     private func dragChanged(_ d: DragGesture.Value, source: HomeDragController.Source, item: HomeItem, metrics m: HomeMetrics) {

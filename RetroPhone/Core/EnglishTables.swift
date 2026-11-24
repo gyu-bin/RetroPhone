@@ -12,6 +12,11 @@ extension EnglishTable {
         "홈 버튼": "Home Button", "한 번 누르면 홈 화면, 두 번 누르면 멀티태스킹": "Press once for Home, twice for multitasking",
         "오프라인": "Offline", "배터리 %d퍼센트": "Battery %d percent", "페이지 %d/%d": "Page %d of %d",
         "%@ 폴더, 앱 %d개": "%@ folder, %d apps", "폴더": "Folder", "폴더 이름": "Folder Name",
+        "스크린샷으로는 폴더 안의 앱을 알 수 없습니다. 실제 아이폰에서 이 폴더를 열고 스크린샷을 찍은 뒤 고르면 그대로 채웁니다.":
+            "A home screen screenshot doesn't show what's inside a folder. Open this folder on your iPhone, take a screenshot and pick it to fill the folder.",
+        "폴더 스크린샷으로 채우기": "Fill from Folder Screenshot",
+        "앱 이름을 찾지 못했습니다": "No App Names Found",
+        "실제 아이폰에서 이 폴더를 연 상태로 찍은 스크린샷인지 확인하세요.": "Make sure the screenshot shows this folder opened on your iPhone.",
         "소셜": "Social", "엔터테인먼트": "Entertainment", "내비게이션": "Navigation", "금융": "Finance",
         "쇼핑": "Shopping", "생산성": "Productivity", "유틸리티": "Utilities",
         "홈 화면에 추가": "Add to Home Screen", "앱": "Apps", "위젯": "Widgets", "직접 추가": "Custom",

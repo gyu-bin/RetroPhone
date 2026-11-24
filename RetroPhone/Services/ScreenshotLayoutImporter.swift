@@ -114,6 +114,51 @@ enum ScreenshotLayoutImporter {
         return rect.insetBy(dx: side * 0.1, dy: side * 0.1).integral
     }
 
+    // MARK: Opened-folder screenshots
+
+    struct FolderEntry: Equatable {
+        var text: String
+        var match: AppID?
+        /// Icon rect in image pixels (just above the label).
+        var iconRect: CGRect
+    }
+
+    /// Apps inside an opened folder (iOS shows them as a labelled grid in a panel). The folder title
+    /// (top) and the blurred page behind are ignored; labels are returned in reading order.
+    static func analyzeFolder(_ labels: [Label], imageSize: CGSize) -> [FolderEntry] {
+        var candidates = labels.filter { l in
+            let t = l.text.trimmingCharacters(in: .whitespaces)
+            guard t.count >= 1, t.count <= 20, l.center.y > 0.15, l.center.y < 0.9 else { return false }
+            return t.contains { $0.isLetter }
+        }
+        // The folder title is set much larger than the app labels.
+        let heights = candidates.map(\.box.height).filter { $0 > 0 }.sorted()
+        if !heights.isEmpty {
+            let median = heights[heights.count / 2]
+            candidates.removeAll { $0.box.height > median * 1.6 }
+        }
+        guard !candidates.isEmpty else { return [] }
+        // Rows: labels whose centers are within 2% of the screen height.
+        var rows: [[Label]] = []
+        for l in candidates.sorted(by: { $0.center.y < $1.center.y }) {
+            if let last = rows.last?.last, abs(last.center.y - l.center.y) < 0.02 { rows[rows.count - 1].append(l) }
+            else { rows.append([l]) }
+        }
+        let ordered = rows.flatMap { $0.sorted { $0.center.x < $1.center.x } }
+        // Icon size from the column pitch (icons are ~62% of it); one column → home-screen size.
+        let xs = ordered.map(\.center.x).sorted()
+        let gaps = zip(xs, xs.dropFirst()).map { $1 - $0 }.filter { $0 > 0.08 }.sorted()
+        let pitch = gaps.isEmpty ? nil : gaps[gaps.count / 2]
+        let side = min(0.3, pitch.map { $0 * 0.62 } ?? iconWidthRatio) * imageSize.width
+        return ordered.map { l in
+            let text = l.text.trimmingCharacters(in: .whitespaces)
+            let gap = 0.014 * imageSize.width
+            let labelTop = (l.box == .zero ? l.center.y - 0.01 : l.box.minY) * imageSize.height
+            let rect = CGRect(x: l.center.x * imageSize.width - side / 2, y: labelTop - gap - side, width: side, height: side)
+            return FolderEntry(text: text, match: match(text), iconRect: rect.insetBy(dx: side * 0.08, dy: side * 0.08).integral)
+        }
+    }
+
     /// The dock strip (bottom band) of a home-screen screenshot. iOS 26+ docks have no labels and a
     /// variable number of centered icons, so the user assigns dock apps while looking at this strip.
     static func dockStripRect(imageSize: CGSize) -> CGRect {

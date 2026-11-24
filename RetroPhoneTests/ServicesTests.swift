@@ -52,6 +52,47 @@ final class HomeImportTests: XCTestCase {
         XCTAssertEqual(kept, ["배민", "카카오톡", "내가 만든 앱"])
     }
 
+    /// A drawn "opened folder" screenshot: OCR finds the app names in reading order (not the folder
+    /// title or the blurred dock behind) and the icon rects land on the drawn icons.
+    func testOpenedFolderScreenshot() async throws {
+        let size = CGSize(width: 1179, height: 2556)
+        let names = ["카카오톡", "Instagram", "내 은행", "메모", "날씨"]
+        let cols: [CGFloat] = [0.27, 0.5, 0.73], rows: [CGFloat] = [0.42, 0.56]
+        let side = 0.143 * size.width
+        var squares: [CGRect] = []
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { ctx in
+            UIColor(white: 0.15, alpha: 1).setFill(); ctx.fill(CGRect(origin: .zero, size: size))
+            func text(_ s: String, _ cx: CGFloat, _ cy: CGFloat, _ pt: CGFloat) {
+                let attr: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: pt, weight: .medium), .foregroundColor: UIColor.white]
+                let sz = (s as NSString).size(withAttributes: attr)
+                (s as NSString).draw(at: CGPoint(x: cx * size.width - sz.width / 2, y: cy * size.height - sz.height / 2), withAttributes: attr)
+            }
+            text("업무", 0.5, 0.22, 90)                 // folder title
+            text("Safari", 0.3, 0.95, 36)               // dock behind
+            for (i, name) in names.enumerated() {
+                let cx = cols[i % 3], cy = rows[i / 3]
+                let gap = 0.014 * size.width + 0.008 * size.height
+                let sq = CGRect(x: cx * size.width - side / 2, y: cy * size.height - gap - side, width: side, height: side)
+                squares.append(sq)
+                UIColor(hue: CGFloat(i) / 5, saturation: 0.8, brightness: 0.9, alpha: 1).setFill()
+                UIBezierPath(roundedRect: sq, cornerRadius: side * 0.22).fill()
+                text(name, cx, cy, 36)
+            }
+        }
+        let labels = try await ScreenshotLayoutImporter.recognizeLabels(in: image)
+        let entries = ScreenshotLayoutImporter.analyzeFolder(labels, imageSize: size)
+        XCTAssertEqual(entries.map(\.text), names)
+        XCTAssertEqual(entries[0].match, "ext.kakaotalk")
+        XCTAssertEqual(entries[1].match, "ext.instagram")
+        XCTAssertNil(entries[2].match)
+        for (e, sq) in zip(entries, squares) {
+            let overlap = e.iconRect.intersection(sq)
+            XCTAssertGreaterThan(overlap.width * overlap.height / (e.iconRect.width * e.iconRect.height), 0.8, e.text)
+        }
+    }
+
     func testMatchingAliasesAndFolders() {
         XCTAssertEqual(ScreenshotLayoutImporter.match("배민"), "ext.baemin")
         XCTAssertEqual(ScreenshotLayoutImporter.match("Safari"), "builtin.browser")

@@ -87,6 +87,7 @@ struct FolderIconCell: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(LF("%@ 폴더, 앱 %d개", folder.name, folder.apps.count))
         .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("folder.\(folder.name)")
     }
 }
 

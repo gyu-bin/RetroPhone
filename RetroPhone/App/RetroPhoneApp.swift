@@ -76,12 +76,23 @@ enum LaunchOptions {
         // Developer/screenshot aid: build the home screen from a screenshot file without the photo picker.
         if let i = args.firstIndex(of: "-importScreenshot"), i + 1 < args.count, let image = UIImage(contentsOfFile: args[i + 1]) {
             SettingsStore.shared.value.homeImportOffered = true
+            // Optional comma-separated folder names, in reading order (OCR can't read emoji names).
+            let folderNames = args.firstIndex(of: "-importFolderNames").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }?
+                .split(separator: ",").map(String.init) ?? []
             Task { @MainActor in
-                let result = await HomeImportView.buildPages(from: [image])
+                var result = await HomeImportView.buildPages(from: [image])
+                var n = 0
+                for p in result.pages.indices {
+                    for i in result.pages[p].items.indices where result.pages[p].items[i].isFolder {
+                        if n < folderNames.count { result.pages[p].items[i].label = folderNames[n] }
+                        n += 1
+                    }
+                }
                 LayoutStore.shared.layout = HomeImportView.makeLayout(
                     base: LayoutStore.shared.layout, pages: result.pages,
                     dockApps: [BuiltinApp.phone.appID, BuiltinApp.messages.appID, BuiltinApp.browser.appID, BuiltinApp.settings.appID],
                     keepRealIcons: false, installed: [], keepWidgets: false)
+                LayoutStore.shared.flush()
             }
         }
         #endif

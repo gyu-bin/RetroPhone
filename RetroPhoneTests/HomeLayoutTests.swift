@@ -84,6 +84,21 @@ final class HomeLayoutTests: XCTestCase {
         XCTAssertNil(l.item(f.id))
     }
 
+    func testFillImportedFolderMovesPageAppsIn() {
+        // An imported folder starts empty (only its screenshot cover is known).
+        let f = HomeItem(.folder(Folder(name: "💚", apps: [], cover: "cover.png")))
+        let notes = app("notes"), maps = app("maps")
+        let other = HomeItem(.folder(Folder(name: "Y", apps: ["builtin.clock"])))
+        var l = HomeLayout(pages: [[f, notes, maps, other]], dock: ["builtin.phone"])
+        l.fillFolder(f.id, with: ["builtin.notes", "builtin.phone", "builtin.clock", "custom.a", "builtin.notes"])
+        // Page app moves in; dock / other-folder apps stay put; duplicates are ignored.
+        XCTAssertEqual(l.item(f.id)?.folder?.apps, ["builtin.notes", "custom.a"])
+        XCTAssertNil(l.locate(notes.id))
+        XCTAssertNotNil(l.locate(maps.id))
+        XCTAssertEqual(l.dock, ["builtin.phone"])
+        XCTAssertEqual(l.item(other.id)?.folder?.apps, ["builtin.clock"])
+    }
+
     func testWidgetsCannotBeFolderTargets() {
         let w = HomeItem.widget(.battery, .small), a = app("phone")
         var l = HomeLayout(pages: [[w, a]], dock: [])

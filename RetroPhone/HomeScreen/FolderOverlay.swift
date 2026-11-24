@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 /// iOS 4-style folder: the home screen dims and a linen panel opens with the folder's apps.
@@ -16,6 +17,9 @@ struct FolderOverlay: View {
     @State private var shown = false
     @State private var suppressNextTap = false
     @FocusState private var nameFocused: Bool
+    @State private var pickerItems: [PhotosPickerItem] = []
+    @State private var filling = false
+    @State private var fillFailed = false
 
     private var store: LayoutStore { LayoutStore.shared }
     private var folder: Folder? { store.layout.item(folderItemID)?.folder }
@@ -24,7 +28,8 @@ struct FolderOverlay: View {
         let m = metrics
         let apps = displayApps
         let rows = max(1, Int(ceil(Double(apps.count) / 4)))
-        let gridHeight = CGFloat(rows) * m.rowHeight
+        let isEmpty = apps.isEmpty && dragApp == nil
+        let gridHeight = isEmpty ? max(m.rowHeight * 1.6, 150) : CGFloat(rows) * m.rowHeight
         let panelHeight = gridHeight + 70
         let panelTop = max(m.gridTop + m.rowHeight * 0.9, (m.size.height - panelHeight) / 2 - 40)
 
@@ -52,6 +57,7 @@ struct FolderOverlay: View {
                             .foregroundStyle(.white)
                             .shadow(color: .black.opacity(0.8), radius: 0, y: -1)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityIdentifier("folderTitle")
                     }
                 }
                 .padding(.horizontal, 18)
@@ -59,6 +65,7 @@ struct FolderOverlay: View {
 
                 ZStack(alignment: .topLeading) {
                     Color.clear
+                    if isEmpty { emptyState }
                     ForEach(Array(apps.enumerated()), id: \.element) { i, app in
                         let center = CGPoint(x: (CGFloat(i % 4) + 0.5) * m.cellWidth, y: (CGFloat(i / 4) + 0.5) * m.rowHeight)
                         if app.raw == "ghost" {
@@ -114,7 +121,50 @@ struct FolderOverlay: View {
             withAnimation(RetroMotion.folder) { shown = true }
         }
         .onChange(of: router.isEditingHome) { _, editing in if !editing { commitName() } }
+        .onChange(of: pickerItems) { _, items in
+            guard !items.isEmpty else { return }
+            Task { await fill(from: items) }
+        }
+        .retroAlert(L("앱 이름을 찾지 못했습니다"), isPresented: $fillFailed,
+                    message: L("실제 아이폰에서 이 폴더를 연 상태로 찍은 스크린샷인지 확인하세요."))
         .onDisappear(perform: commitName)
+    }
+
+    /// Folders imported from a home-screen screenshot only know their cover, not their apps.
+    private var emptyState: some View {
+        VStack(spacing: 10) {
+            Text(L("스크린샷으로는 폴더 안의 앱을 알 수 없습니다. 실제 아이폰에서 이 폴더를 열고 스크린샷을 찍은 뒤 고르면 그대로 채웁니다."))
+                .font(.retro(14)).foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.8), radius: 0, y: -1)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            if filling {
+                ProgressView().tint(.white)
+            } else {
+                PhotosPicker(selection: $pickerItems, maxSelectionCount: 5, selectionBehavior: .ordered, matching: .screenshots) {
+                    Text(L("폴더 스크린샷으로 채우기"))
+                        .font(.retro(15, .bold)).foregroundStyle(.white)
+                        .padding(.horizontal, 16).frame(height: 36)
+                        .background(Capsule().fill(LinearGradient(colors: [Color(hex: 0x6E9BEA), Color(hex: 0x2558C4)],
+                                                                  startPoint: .top, endPoint: .bottom)))
+                        .overlay(Capsule().stroke(Color.black.opacity(0.4), lineWidth: 1))
+                }
+                .accessibilityIdentifier("folderFillFromScreenshot")
+            }
+        }
+        .padding(.horizontal, 24)
+        .frame(maxWidth: .infinity)
+    }
+
+    private func fill(from items: [PhotosPickerItem]) async {
+        filling = true
+        defer { filling = false; pickerItems = [] }
+        var images: [UIImage] = []
+        for item in items {
+            if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) { images.append(image) }
+        }
+        let count = await HomeImportView.fillFolder(folderItemID, from: images)
+        if count == 0 { fillFailed = true } else { Haptics.success() }
     }
 
     private var displayApps: [AppID] {

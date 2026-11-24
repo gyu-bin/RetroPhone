@@ -339,6 +339,45 @@ extension HomeImportView {
     }
 }
 
+// MARK: - Folder contents from a screenshot of the real (opened) folder
+
+extension HomeImportView {
+    /// Reads the app labels in screenshots of an opened iOS folder and puts those apps into the
+    /// RetroPhone folder. Unknown apps become shortcuts with their real icon, as in the page import.
+    /// Returns how many apps were recognised.
+    static func fillFolder(_ folderID: UUID, from images: [UIImage]) async -> Int {
+        var entries: [(text: String, match: AppID?, crop: UIImage?)] = []
+        for raw in images {
+            let image = raw.normalizedOrientation()
+            guard let labels = try? await ScreenshotLayoutImporter.recognizeLabels(in: image) else { continue }
+            let size = CGSize(width: image.cgImage?.width ?? 0, height: image.cgImage?.height ?? 0)
+            for e in ScreenshotLayoutImporter.analyzeFolder(labels, imageSize: size) {
+                entries.append((e.text, e.match, ScreenshotLayoutImporter.crop(image, to: e.iconRect)))
+            }
+        }
+        guard !entries.isEmpty else { return 0 }
+        let store = LayoutStore.shared
+        var layout = store.layout
+        var ids: [AppID] = []
+        for e in entries {
+            if let m = e.match { ids.append(m); continue }
+            // Same label as an existing shortcut (e.g. picked the same screenshot twice) → reuse it.
+            if let existing = layout.customApps.first(where: { $0.nameKo == e.text }) { ids.append(existing.id); continue }
+            let id = AppID("custom.\(UUID().uuidString)")
+            layout.customApps.append(ExternalApp(id: id, nameKo: e.text, nameEn: e.text, scheme: nil, webURL: nil,
+                                                 appStoreID: nil, verification: .webOnly, art: .generic))
+            if let crop = e.crop, let file = FileStore.saveImage(crop, maxDimension: 240) {
+                layout.overrides[id.raw] = AppOverride(name: nil, customIconFile: file, art: nil)
+            }
+            ids.append(id)
+        }
+        layout.fillFolder(folderID, with: ids)
+        store.layout = layout
+        store.flush()
+        return ids.count
+    }
+}
+
 extension UIImage {
     /// Redraws the image so its pixel data is upright (crop rects then match what the user sees).
     func normalizedOrientation() -> UIImage {

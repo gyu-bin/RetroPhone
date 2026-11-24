@@ -249,6 +249,26 @@ struct HomeLayout: Codable, Equatable {
         normalize()
     }
 
+    /// Puts `apps` into a folder (e.g. read from a screenshot of the real folder). An app that sits on
+    /// a page by itself moves into the folder, like dragging it in; one already in the dock or another
+    /// folder stays where it is.
+    mutating func fillFolder(_ folderID: UUID, with apps: [AppID]) {
+        guard item(folderID)?.folder != nil else { return }
+        var inOtherPlaces = Set(dock)
+        for page in pages {
+            for item in page where item.id != folderID { if let f = item.folder { inOtherPlaces.formUnion(f.apps) } }
+        }
+        var added: [AppID] = []
+        for app in apps where !inOtherPlaces.contains(app) && !added.contains(app) {
+            for p in pages.indices { pages[p].removeAll { $0.appID == app } }
+            added.append(app)
+        }
+        guard let loc = locate(folderID), var folder = pages[loc.page][loc.index].folder else { return }
+        folder.apps += added.filter { !folder.apps.contains($0) }
+        pages[loc.page][loc.index].content = .folder(folder)
+        normalize()
+    }
+
     /// Takes an app out of a folder and places it right after the folder.
     mutating func extract(_ app: AppID, fromFolder folderID: UUID) {
         guard let loc = locate(folderID), var folder = pages[loc.page][loc.index].folder,
