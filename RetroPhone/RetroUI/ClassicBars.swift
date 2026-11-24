@@ -14,9 +14,9 @@ struct ClassicNavBar<Leading: View, Trailing: View>: View {
         ZStack {
             BarBackground(style: style)
             Text(title)
-                .font(.retroFixed(20, .bold))
-                .foregroundStyle(.white)
-                .shadow(color: style == .blue ? theme.navTitleShadow : .black, radius: 0, x: 0, y: -1)
+                .font(theme.isFlat ? .system(size: 17, weight: .semibold) : .retroFixed(20, .bold))
+                .foregroundStyle(theme.isFlat && style == .blue ? Color.black : .white)
+                .shadow(color: theme.isFlat ? .clear : (style == .blue ? theme.navTitleShadow : .black), radius: 0, x: 0, y: -1)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
                 .padding(.horizontal, 90)
@@ -45,6 +45,11 @@ struct BarBackground: View {
 
     var body: some View {
         ZStack(alignment: .top) {
+            if theme.isFlat {
+                // iOS 7: flat translucent bar with a hairline edge.
+                (style == .blue ? Color(hex: 0xF8F8F8).opacity(0.97) : Color.black.opacity(style == .blackTranslucent ? 0.6 : 0.92))
+                VStack { Spacer(); Rectangle().fill(style == .blue ? theme.navBorderBottom : Color.white.opacity(0.15)).frame(height: 0.5) }
+            } else {
             switch style {
             case .blue:
                 LinearGradient(stops: [
@@ -65,6 +70,7 @@ struct BarBackground: View {
                 .opacity(style == .blackTranslucent ? 0.72 : 1)
                 Rectangle().fill(Color.white.opacity(0.25)).frame(height: 1)
             }
+            }
         }
     }
 }
@@ -81,6 +87,34 @@ struct ClassicBarButton: View {
     var action: () -> Void
 
     var body: some View {
+        if theme.isFlat { flatButton } else { classicButton }
+    }
+
+    /// iOS 7: borderless tinted text; back is a chevron + title.
+    private var flatButton: some View {
+        let color: Color = kind == .destructive ? Color(hex: 0xFF3B30) : (barStyle == .blue ? theme.tint : .white)
+        return Button {
+            SoundService.shared.play(.tock)
+            action()
+        } label: {
+            HStack(spacing: 3) {
+                if kind == .back { Image(systemName: "chevron.left").font(.system(size: 20, weight: .medium)) }
+                if let systemImage {
+                    Image(systemName: systemImage).font(.system(size: 19, weight: .regular))
+                } else {
+                    Text(title).font(.system(size: 17, weight: kind == .done ? .semibold : .regular)).lineLimit(1)
+                }
+            }
+            .foregroundStyle(color)
+            .padding(.horizontal, 6)
+            .frame(minWidth: 44, minHeight: 34)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+    }
+
+    private var classicButton: some View {
         Button {
             SoundService.shared.play(.tock)
             action()
@@ -164,11 +198,23 @@ struct ClassicToolbar<Content: View>: View {
             HStack { content() }.padding(.horizontal, 8)
         }
         .frame(height: 44)
+        .environment(\.barIsDark, style != .blue)
+    }
+}
+
+private struct BarIsDarkKey: EnvironmentKey { static let defaultValue = true }
+extension EnvironmentValues {
+    /// Set by toolbars so iOS 7 glyph buttons pick tint (light bar) or white (dark bar).
+    var barIsDark: Bool {
+        get { self[BarIsDarkKey.self] }
+        set { self[BarIsDarkKey.self] = newValue }
     }
 }
 
 /// Plain glyph button for toolbars (white with dark shadow).
 struct ToolbarIconButton: View {
+    @Environment(\.retroTheme) private var theme
+    @Environment(\.barIsDark) private var barIsDark
     var systemImage: String
     var label: String
     var enabled: Bool = true
@@ -179,9 +225,9 @@ struct ToolbarIconButton: View {
             action()
         } label: {
             Image(systemName: systemImage)
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.5), radius: 0, y: -1)
+                .font(.system(size: 20, weight: theme.isFlat ? .regular : .semibold))
+                .foregroundStyle(theme.isFlat && !barIsDark ? theme.tint : .white)
+                .shadow(color: theme.isFlat ? .clear : .black.opacity(0.5), radius: 0, y: -1)
                 .frame(width: 44, height: 40)
                 .opacity(enabled ? 1 : 0.4)
         }

@@ -30,14 +30,15 @@ struct AppIconCell: View {
 }
 
 struct IconLabel: View {
+    @Environment(\.retroTheme) private var theme
     var text: String
     var size: CGFloat
     var width: CGFloat
     var body: some View {
         Text(text)
-            .font(.retroFixed(size, .bold))
+            .font(theme.isFlat ? .system(size: size, weight: .regular) : .retroFixed(size, .bold))
             .foregroundStyle(.white)
-            .shadow(color: .black.opacity(0.95), radius: 1.2, x: 0, y: 1)
+            .shadow(color: .black.opacity(theme.isFlat ? 0.3 : 0.95), radius: theme.isFlat ? 1 : 1.2, x: 0, y: theme.isFlat ? 0.5 : 1)
             .lineLimit(1)
             .truncationMode(.tail)
             .frame(width: width)
@@ -92,6 +93,7 @@ struct FolderIconCell: View {
 }
 
 struct FolderTile: View {
+    @Environment(\.retroTheme) private var theme
     var apps: [AppID]
     var size: CGFloat
     var highlighted: Bool = false
@@ -102,8 +104,14 @@ struct FolderTile: View {
         let mini = size * 0.22
         let shape = RoundedRectangle(cornerRadius: RetroIconView.cornerRadius(size), style: .continuous)
         ZStack {
-            shape.fill(LinearGradient(colors: [Color.black.opacity(0.28), Color.black.opacity(0.5)], startPoint: .top, endPoint: .bottom))
-            shape.strokeBorder(LinearGradient(colors: [.black.opacity(0.6), .white.opacity(0.35)], startPoint: .top, endPoint: .bottom), lineWidth: 1.2)
+            if theme.isFlat {
+                // iOS 7: frosted light tile.
+                shape.fill(.ultraThinMaterial).environment(\.colorScheme, .light)
+                shape.fill(Color.white.opacity(0.22))
+            } else {
+                shape.fill(LinearGradient(colors: [Color.black.opacity(0.28), Color.black.opacity(0.5)], startPoint: .top, endPoint: .bottom))
+                shape.strokeBorder(LinearGradient(colors: [.black.opacity(0.6), .white.opacity(0.35)], startPoint: .top, endPoint: .bottom), lineWidth: 1.2)
+            }
             if apps.isEmpty, let cover, let img = FileStore.loadImage(cover) {
                 // The real folder tile from the screenshot (its mini icons), under the classic glass.
                 Image(uiImage: img).resizable().scaledToFill()
@@ -151,9 +159,19 @@ extension View {
     }
 }
 
-/// Glass dock with highlight and soft reflection band.
+/// Glass dock with highlight and soft reflection band (iOS 7: a flat frosted band).
 struct DockShelf: View {
+    @Environment(\.retroTheme) private var theme
     var body: some View {
+        if theme.isFlat {
+            Rectangle().fill(.ultraThinMaterial).environment(\.colorScheme, .light)
+                .overlay(Color.white.opacity(0.15))
+        } else {
+            classic
+        }
+    }
+
+    private var classic: some View {
         ZStack(alignment: .top) {
             LinearGradient(stops: [
                 .init(color: .white.opacity(0.42), location: 0),

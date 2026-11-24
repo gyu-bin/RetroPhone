@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HomeScreenView: View {
     @Environment(AppRouter.self) private var router
+    @Environment(\.retroTheme) private var theme
     @Environment(\.deviceInsets) private var insets
     @State private var drag = HomeDragController()
     @State private var pageDrag: CGFloat = 0
@@ -87,7 +88,7 @@ struct HomeScreenView: View {
             offerImport = true
         }
         .retroAlert(L("지금 쓰는 아이폰처럼 만들까요?"), isPresented: $offerImport,
-                    message: L("실제 홈 화면 스크린샷을 고르면 위젯·폴더·앱 배치를 그대로 옮겨 2010년 스타일로 바꿔 드립니다. 나중에 설정 › 홈 화면에서도 할 수 있습니다."),
+                    message: L("실제 홈 화면 스크린샷을 고르면 위젯·폴더·앱 배치를 그대로 옮겨 옛 아이폰 스타일로 바꿔 드립니다. 나중에 설정 › 홈 화면에서도 할 수 있습니다."),
                     buttons: [RetroAlertButton(title: L("나중에")), RetroAlertButton(title: L("가져오기"), isPreferred: true) {
                         showImport = true
                     }])
@@ -188,9 +189,11 @@ struct HomeScreenView: View {
             // With the classic chin the shelf only needs to reach just under it (so it doesn't show
             // as a band when the screen slides up for multitasking).
             let shelfBottom = m.insets.bottom > 60 ? m.size.height - m.insets.bottom + 12 : m.size.height
+            // iOS 4: a glass shelf under the lower part of the icons; iOS 7: a frosted band behind them.
+            let shelfTop = theme.isFlat ? m.dockTop - 4 : m.dockTop + m.iconSize * 0.62
             DockShelf()
-                .frame(width: m.size.width, height: shelfBottom - m.dockTop - m.iconSize * 0.62 + 10)
-                .offset(y: m.dockTop + m.iconSize * 0.62)
+                .frame(width: m.size.width, height: shelfBottom - shelfTop + 10)
+                .offset(y: shelfTop)
             ForEach(Array(apps.enumerated()), id: \.element) { i, app in
                 if app.raw == "ghost" {
                     Color.clear.frame(width: 1, height: 1).position(centers[i])
@@ -204,7 +207,7 @@ struct HomeScreenView: View {
                         DockReflection(app: app, size: m.iconSize)
                             .frame(height: m.iconSize * 0.3, alignment: .top)
                             .clipped()
-                            .opacity(router.isEditingHome ? 0 : 1)
+                            .opacity(router.isEditingHome || theme.isFlat ? 0 : 1)
                     }
                     .overlay(alignment: .bottom) {
                         IconLabel(text: store.name(for: app), size: m.labelSize, width: m.cellWidth - 4)

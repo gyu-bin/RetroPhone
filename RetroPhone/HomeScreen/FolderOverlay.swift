@@ -5,6 +5,7 @@ import SwiftUI
 /// In edit mode: rename, drag to reorder, drag out of the panel to move an app back to the page.
 struct FolderOverlay: View {
     @Environment(AppRouter.self) private var router
+    @Environment(\.retroTheme) private var theme
     var folderItemID: UUID
     var metrics: HomeMetrics
     var onLaunch: (AppID, UnitPoint) -> Void
@@ -34,9 +35,17 @@ struct FolderOverlay: View {
         let panelTop = max(m.gridTop + m.rowHeight * 0.9, (m.size.height - panelHeight) / 2 - 40)
 
         ZStack(alignment: .topLeading) {
-            Color.black.opacity(shown ? 0.55 : 0)
-                .ignoresSafeArea()
-                .onTapGesture { close() }
+            Group {
+                if theme.isFlat {
+                    // iOS 7: the home screen blurs behind the folder.
+                    Rectangle().fill(.ultraThinMaterial).environment(\.colorScheme, .dark)
+                        .opacity(shown ? 1 : 0)
+                } else {
+                    Color.black.opacity(shown ? 0.55 : 0)
+                }
+            }
+            .ignoresSafeArea()
+            .onTapGesture { close() }
 
             VStack(spacing: 0) {
                 Group {
@@ -53,10 +62,10 @@ struct FolderOverlay: View {
                             .accessibilityIdentifier("folderNameField")
                     } else {
                         Text(folder?.name ?? "")
-                            .font(.retroFixed(20, .bold))
+                            .font(theme.isFlat ? .system(size: 26, weight: .light) : .retroFixed(20, .bold))
                             .foregroundStyle(.white)
-                            .shadow(color: .black.opacity(0.8), radius: 0, y: -1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .shadow(color: theme.isFlat ? .clear : .black.opacity(0.8), radius: 0, y: -1)
+                            .frame(maxWidth: .infinity, alignment: theme.isFlat ? .center : .leading)
                             .accessibilityIdentifier("folderTitle")
                     }
                 }
@@ -93,19 +102,29 @@ struct FolderOverlay: View {
                 .padding(.bottom, 10)
             }
             .frame(width: m.size.width)
-            .background(
-                ZStack {
-                    WallpaperView(choice: .builtin(.linen))
-                    VStack {
-                        LinearGradient(colors: [.black.opacity(0.6), .clear], startPoint: .top, endPoint: .bottom).frame(height: 10)
-                        Spacer()
-                        LinearGradient(colors: [.clear, .black.opacity(0.6)], startPoint: .top, endPoint: .bottom).frame(height: 10)
+            .background {
+                if theme.isFlat {
+                    // The title sits above the frosted rounded panel, like iOS 7.
+                    RoundedRectangle(cornerRadius: 34, style: .continuous)
+                        .fill(Color.white.opacity(0.28))
+                        .padding(.horizontal, 10)
+                        .padding(.top, 58)
+                } else {
+                    ZStack {
+                        WallpaperView(choice: .builtin(.linen))
+                        VStack {
+                            LinearGradient(colors: [.black.opacity(0.6), .clear], startPoint: .top, endPoint: .bottom).frame(height: 10)
+                            Spacer()
+                            LinearGradient(colors: [.clear, .black.opacity(0.6)], startPoint: .top, endPoint: .bottom).frame(height: 10)
+                        }
                     }
+                    .clipped()
+                    .overlay(alignment: .top) { Rectangle().fill(Color.white.opacity(0.35)).frame(height: 1) }
                 }
-            )
-            .clipped()
-            .overlay(alignment: .top) { Rectangle().fill(Color.white.opacity(0.35)).frame(height: 1) }
-            .scaleEffect(y: shown ? 1 : 0.01, anchor: .top)
+            }
+            .scaleEffect(x: theme.isFlat ? (shown ? 1 : 0.4) : 1, y: theme.isFlat ? (shown ? 1 : 0.4) : (shown ? 1 : 0.01),
+                         anchor: theme.isFlat ? .center : .top)
+            .opacity(theme.isFlat && !shown ? 0 : 1)
             .offset(y: panelTop)
 
             if let dragApp {

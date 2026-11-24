@@ -5,7 +5,7 @@ import Foundation
 // lists untranslated strings.
 extension EnglishTable {
     static let lock: [String: String] = [
-        "밀어서 잠금 해제": "slide to unlock", "충전 중": "Charging", "충전 완료": "Charged",
+        "밀어서 잠금 해제": "slide to unlock", "충전 중": "Charging", "충전 중: %d%%": "Charging: %d%%", "충전 완료": "Charged",
     ]
 
     static let home: [String: String] = [
@@ -67,7 +67,7 @@ extension EnglishTable {
         "잠금화면과 홈 화면": "Lock & Home Screen", "모든 준비가 끝났습니다.": "You're all set.",
         "홈 화면의 아이콘을 길게 누르면 편집할 수 있고, 아래의 가상 홈 버튼을 두 번 누르면 멀티태스킹이 열립니다. 언제든 화면 아래에서 위로 쓸어 올려 실제 iOS로 돌아갈 수 있습니다.": "Touch and hold an icon to edit the Home Screen; double-press the virtual Home button for multitasking. Swipe up from the bottom anytime to return to real iOS.",
         "스크린샷을 분석하지 못했습니다": "Couldn't Analyze Screenshot", "홈 화면 스크린샷인지 확인하세요.": "Make sure it's a Home Screen screenshot.",
-        "물방울": "Droplets", "오로라": "Aurora", "리넨": "Linen", "밤하늘": "Night Sky", "노을": "Sunset",
+        "물방울": "Droplets", "오로라": "Aurora", "리넨": "Linen", "밤하늘": "Night Sky", "노을": "Sunset", "물결": "Wave",
     ]
 
     static let launcher: [String: String] = [
@@ -92,7 +92,7 @@ extension EnglishTable {
         "스크린샷에 없는 설치된 앱 추가": "Add Installed Apps Not in Screenshots",
         "스크린샷에서 가져온 앱입니다. iOS는 다른 앱의 실행 주소를 알려 주지 않으니 아이콘 편집에서 주소(예: myapp:// 또는 웹 주소)를 입력하세요.": "This app came from a screenshot. iOS doesn't reveal other apps' launch addresses, so enter one (e.g. myapp:// or a web address) in Edit Icon.",
         "실제 아이폰 홈 화면을 페이지마다 스크린샷으로 찍은 뒤 순서대로 선택하세요. 앱 이름과 위치를 기기 안에서 읽어 RetroPhone 홈 화면을 똑같이 구성합니다.": "Take a screenshot of each page of your real Home Screen and select them in order. App names and positions are read on-device to rebuild the same layout in RetroPhone.",
-        "실제 홈 화면을 페이지마다 스크린샷으로 찍어 두었다가 선택하면, 앱 이름과 위치를 기기 안에서 읽어 지금 쓰는 홈 화면을 2010년 스타일로 똑같이 만듭니다.": "Select screenshots of each page of your real Home Screen and RetroPhone reads app names and positions on-device to rebuild your current layout in 2010 style.",
+        "실제 홈 화면을 페이지마다 스크린샷으로 찍어 두었다가 선택하면, 앱 이름과 위치를 기기 안에서 읽어 지금 쓰는 홈 화면을 옛 아이폰 스타일로 똑같이 만듭니다.": "Select screenshots of each page of your real Home Screen and RetroPhone reads app names and positions on-device to rebuild your current layout in classic iPhone style.",
         "실행 주소": "Launch Address",
         "알 수 없는 앱 · 실제 아이콘 유지": "Unknown app · keeps real icon",
         "알 수 없는 앱은 실제 아이콘을 그대로 쓰고, 실행 주소는 나중에 아이콘 편집에서 정할 수 있습니다.": "Unknown apps keep their real icon; set their launch address later in Edit Icon.",
@@ -114,7 +114,7 @@ extension EnglishTable {
         "홈 화면 스크린샷 선택…": "Choose Home Screen Screenshots…",
         "홈 화면을 바꿀까요?": "Replace Home Screen?",
         "지금 쓰는 아이폰처럼 만들까요?": "Make It Look Like My iPhone?",
-        "실제 홈 화면 스크린샷을 고르면 위젯·폴더·앱 배치를 그대로 옮겨 2010년 스타일로 바꿔 드립니다. 나중에 설정 › 홈 화면에서도 할 수 있습니다.": "Pick screenshots of your real Home Screen and RetroPhone copies its widgets, folders and apps in 2010 style. You can also do this later in Settings › Home Screen.",
+        "실제 홈 화면 스크린샷을 고르면 위젯·폴더·앱 배치를 그대로 옮겨 옛 아이폰 스타일로 바꿔 드립니다. 나중에 설정 › 홈 화면에서도 할 수 있습니다.": "Pick screenshots of your real Home Screen and RetroPhone copies its widgets, folders and apps in classic iPhone style. You can also do this later in Settings › Home Screen.",
         "나중에": "Later", "가져오기": "Import", "폴더 %d": "Folder %d", "기기 없음": "No Device",
         "폴더 · 이름을 정해 주세요 (이모지 이름은 읽을 수 없음)": "Folder · name it (emoji names can't be read)",
     ]

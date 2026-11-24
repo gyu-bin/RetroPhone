@@ -32,6 +32,7 @@ enum WallpaperRenderer {
             case .linen: drawLinen(c, size, &rng)
             case .night: drawNight(c, size, &rng)
             case .sunset: drawSunset(c, size)
+            case .wave: drawWave(c, size, &rng)
             }
         }
     }
@@ -136,6 +137,37 @@ enum WallpaperRenderer {
                    controlPoint2: CGPoint(x: size.width * 0.6, y: size.height * 0.9))
         p.addLine(to: CGPoint(x: size.width, y: size.height)); p.close()
         c.setFillColor(ui(0x03050C).cgColor); c.addPath(p.cgPath); c.fillPath()
+    }
+
+    /// iOS 7-era style: bright blue→violet→coral gradient with soft light waves and bokeh.
+    private static func drawWave(_ c: CGContext, _ size: CGSize, _ rng: inout SeededRandom) {
+        linear(c, size, [ui(0x1C8BD9), ui(0x3D5BD6), ui(0x8A4FC8), ui(0xE7678F), ui(0xF6A25E)], [0, 0.3, 0.55, 0.8, 1])
+        let w = size.width, h = size.height
+        // Translucent light bands sweeping across.
+        for i in 0..<4 {
+            let y0 = h * (0.25 + CGFloat(i) * 0.16)
+            let amp = h * CGFloat(rng.next(in: 0.05...0.11))
+            let p = CGMutablePath()
+            p.move(to: CGPoint(x: -w * 0.1, y: y0))
+            p.addCurve(to: CGPoint(x: w * 1.1, y: y0 - amp),
+                       control1: CGPoint(x: w * 0.3, y: y0 - amp * 2.2),
+                       control2: CGPoint(x: w * 0.7, y: y0 + amp * 1.6))
+            p.addLine(to: CGPoint(x: w * 1.1, y: h * 1.1))
+            p.addLine(to: CGPoint(x: -w * 0.1, y: h * 1.1))
+            p.closeSubpath()
+            c.addPath(p)
+            c.setFillColor(ui(0xFFFFFF, 0.06 + CGFloat(i) * 0.015).cgColor)
+            c.fillPath()
+        }
+        // Soft out-of-focus circles.
+        for _ in 0..<14 {
+            let r = CGFloat(rng.next(in: 20...90)) * w / 390
+            let p = CGPoint(x: CGFloat(rng.next(in: 0...1)) * w, y: CGFloat(rng.next(in: 0...1)) * h)
+            let a = CGFloat(rng.next(in: 0.06...0.16))
+            let g = CGGradient(colorsSpace: nil, colors: [ui(0xFFFFFF, a).cgColor, ui(0xFFFFFF, 0).cgColor] as CFArray,
+                               locations: [0.6, 1])!
+            c.drawRadialGradient(g, startCenter: p, startRadius: 0, endCenter: p, endRadius: r, options: [])
+        }
     }
 
     private static func drawSunset(_ c: CGContext, _ size: CGSize) {

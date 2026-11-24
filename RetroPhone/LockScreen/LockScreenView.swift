@@ -5,9 +5,75 @@ import SwiftUI
 struct LockScreenView: View {
     @Environment(AppRouter.self) private var router
     @Environment(\.deviceInsets) private var insets
+    @Environment(\.retroTheme) private var theme
     @State private var departing = false
+    @State private var swipe: CGFloat = 0
 
     var body: some View {
+        if theme.isFlat { flatBody } else { classicBody }
+    }
+
+    /// iOS 7: no panels — big thin clock, and the whole screen slides right to unlock.
+    private var flatBody: some View {
+        GeometryReader { geo in
+            let k = min(geo.size.width / 320, 1.4)
+            let now = ClockTicker.shared.now
+            let progress = min(1, max(0, swipe / geo.size.width))
+            ZStack {
+                WallpaperView(choice: SettingsStore.shared.value.lockWallpaper)
+                Color.black.opacity(0.12)
+                VStack(spacing: 0) {
+                    Text(RetroFormat.lockTime(now))
+                        .font(.custom("HelveticaNeue-UltraLight", fixedSize: 82 * k))
+                        .foregroundStyle(.white)
+                        .accessibilityIdentifier("lockTime")
+                    Text(RetroFormat.lockDate(now))
+                        .font(.custom("HelveticaNeue-Light", fixedSize: 18 * k))
+                        .foregroundStyle(.white)
+                    if BatteryMonitor.shared.isCharging, let p = BatteryMonitor.shared.percent {
+                        Text(LF("충전 중: %d%%", p))
+                            .font(.custom("HelveticaNeue-Light", fixedSize: 14 * k))
+                            .foregroundStyle(.white)
+                            .padding(.top, 6 * k)
+                    }
+                    Spacer()
+                    HStack(spacing: 6 * k) {
+                        Image(systemName: "chevron.right").font(.system(size: 18 * k, weight: .light))
+                            .foregroundStyle(.white.opacity(0.7))
+                        ShimmerText(text: L("밀어서 잠금 해제"), size: 22 * k, light: true)
+                    }
+                    .opacity(max(0, 1 - progress * 3))
+                    .padding(.bottom, max(insets.bottom, 12) + 30 * k)
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
+                    .accessibilityElement()
+                    .accessibilityLabel(L("밀어서 잠금 해제"))
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityIdentifier("unlockSlider")
+                    .accessibilityAction { unlock() }
+                }
+                .padding(.top, insets.top + 34 * k)
+                .offset(x: swipe)
+            }
+            .ignoresSafeArea()
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 8)
+                    .onChanged { v in swipe = max(0, v.translation.width) }
+                    .onEnded { v in
+                        if v.translation.width > geo.size.width * 0.35 || v.predictedEndTranslation.width > geo.size.width * 0.7 {
+                            withAnimation(.easeOut(duration: 0.22)) { swipe = geo.size.width }
+                            unlock()
+                        } else {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { swipe = 0 }
+                        }
+                    }
+            )
+        }
+        .onChange(of: router.lockGeneration) { departing = false; swipe = 0 }
+    }
+
+    private var classicBody: some View {
         GeometryReader { geo in
             let k = min(geo.size.width / 320, 1.4)
             let now = ClockTicker.shared.now
@@ -158,10 +224,12 @@ struct SlideToUnlock: View {
 struct ShimmerText: View {
     var text: String
     var size: CGFloat
+    /// iOS 7 uses Helvetica Neue Light.
+    var light: Bool = false
     @State private var phase: CGFloat = -1
 
     var body: some View {
-        let label = Text(text).font(.custom("Helvetica", fixedSize: size))
+        let label = Text(text).font(.custom(light ? "HelveticaNeue-Light" : "Helvetica", fixedSize: size))
         label
             .foregroundStyle(Color.white.opacity(0.42))
             .overlay {

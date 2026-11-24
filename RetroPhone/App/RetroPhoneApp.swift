@@ -28,7 +28,7 @@ struct RetroPhoneApp: App {
         WindowGroup {
             RootView()
                 .environment(router)
-                .environment(\.retroTheme, .ios4)
+                .environment(\.retroTheme, RetroTheme.forEra(SettingsStore.shared.value.themeEra))
                 .preferredColorScheme(.light)
         }
         .onChange(of: scenePhase) { _, phase in
@@ -71,6 +71,9 @@ enum LaunchOptions {
         }
         if let i = args.firstIndex(of: "-language"), i + 1 < args.count, let lang = AppLanguage(rawValue: args[i + 1]) {
             SettingsStore.shared.value.language = lang
+        }
+        if let i = args.firstIndex(of: "-theme"), i + 1 < args.count, let era = ThemeEra(rawValue: args[i + 1]) {
+            StyleSettingsView.apply(era)
         }
         #if DEBUG
         // Developer/screenshot aid: build the home screen from a screenshot file without the photo picker.

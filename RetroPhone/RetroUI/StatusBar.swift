@@ -8,6 +8,7 @@ enum StatusBarStyle { case gray, black, translucent }
 /// - Only real values are shown: time, battery level/charging, and the network interface type.
 ///   Carrier name and signal strength are not available via public API and are never displayed.
 struct RetroStatusBar: View {
+    @Environment(\.retroTheme) private var theme
     var style: StatusBarStyle
     var topInset: CGFloat
 
@@ -22,7 +23,7 @@ struct RetroStatusBar: View {
             if hasIsland {
                 HStack(spacing: 0) {
                     HStack(spacing: 6) {
-                        Text(RetroFormat.time(now)).font(.retroFixed(15, .bold))
+                        Text(RetroFormat.time(now)).font(timeFont(15))
                         NetworkGlyph(color: fg)
                     }
                     .frame(maxWidth: .infinity)
@@ -35,19 +36,36 @@ struct RetroStatusBar: View {
             } else {
                 ZStack {
                     HStack { NetworkGlyph(color: fg); Spacer(); BatteryGlyph(color: fg) }
-                    Text(RetroFormat.time(now)).font(.retroFixed(14, .bold))
+                    Text(RetroFormat.time(now)).font(timeFont(14))
                 }
                 .padding(.horizontal, 6)
             }
         }
         .foregroundStyle(fg)
-        .shadow(color: style == .gray ? .white.opacity(0.6) : .clear, radius: 0, y: 1)
+        .shadow(color: style == .gray && !theme.isFlat ? .white.opacity(0.6) : .clear, radius: 0, y: 1)
         .frame(height: height)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityText(now))
     }
 
+    private func timeFont(_ size: CGFloat) -> Font {
+        theme.isFlat ? .system(size: size - 1, weight: .semibold) : .retroFixed(size, .bold)
+    }
+
     @ViewBuilder private var background: some View {
+        if theme.isFlat {
+            // iOS 7: the status bar takes the colour of whatever is under it.
+            switch style {
+            case .gray: Color(hex: 0xF8F8F8)
+            case .black: Color.black
+            case .translucent: Color.clear
+            }
+        } else {
+            classicBackground
+        }
+    }
+
+    @ViewBuilder private var classicBackground: some View {
         switch style {
         case .gray:
             LinearGradient(colors: [Color(hex: 0xD6D6D6), Color(hex: 0xA4A4A4)], startPoint: .top, endPoint: .bottom)
@@ -120,20 +138,23 @@ struct BatteryGlyph: View {
 /// Floating home button that sits in the bottom safe-area band (the "chin").
 /// One press = home, two presses = multitasking. System gestures are never blocked.
 struct VirtualHomeButton: View {
+    @Environment(\.retroTheme) private var theme
     var router: AppRouter
     var size: CGFloat = 30
 
     var body: some View {
         ZStack {
-            Circle()
-                .fill(LinearGradient(colors: [Color(hex: 0x0A0A0A), Color(hex: 0x3A3A3A)], startPoint: .top, endPoint: .bottom))
-            Circle().stroke(LinearGradient(colors: [Color(hex: 0x1A1A1A), Color(hex: 0x6A6A6A)], startPoint: .top, endPoint: .bottom), lineWidth: 1.5)
-            RoundedRectangle(cornerRadius: size * 0.085, style: .continuous)
-                .stroke(Color(hex: 0xBDBDBD), lineWidth: max(1.2, size * 0.04))
-                .frame(width: size * 0.34, height: size * 0.34)
+            if theme.isFlat {
+                // iPhone 5s: flat sapphire button inside a metal (Touch ID) ring, no square glyph.
+                Circle().fill(LinearGradient(colors: [Color(hex: 0x141416), Color(hex: 0x26262A)], startPoint: .top, endPoint: .bottom))
+                Circle().stroke(LinearGradient(colors: [Color(hex: 0x8E8E93), Color(hex: 0x4A4A4E), Color(hex: 0x9A9AA0)],
+                                               startPoint: .top, endPoint: .bottom), lineWidth: max(1.5, size * 0.05))
+            } else {
+                classicFace
+            }
         }
         .frame(width: size, height: size)
-        .shadow(color: .white.opacity(0.25), radius: 0, y: 1)
+        .shadow(color: .white.opacity(theme.isFlat ? 0 : 0.25), radius: 0, y: 1)
         .opacity(0.9)
         .frame(width: max(60, size + 24), height: max(34, size + 8))
         .contentShape(Rectangle())
@@ -154,5 +175,14 @@ struct VirtualHomeButton: View {
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("homeButton")
         .accessibilityAction { router.homePressed() }
+    }
+
+    @ViewBuilder private var classicFace: some View {
+        Circle()
+            .fill(LinearGradient(colors: [Color(hex: 0x0A0A0A), Color(hex: 0x3A3A3A)], startPoint: .top, endPoint: .bottom))
+        Circle().stroke(LinearGradient(colors: [Color(hex: 0x1A1A1A), Color(hex: 0x6A6A6A)], startPoint: .top, endPoint: .bottom), lineWidth: 1.5)
+        RoundedRectangle(cornerRadius: size * 0.085, style: .continuous)
+            .stroke(Color(hex: 0xBDBDBD), lineWidth: max(1.2, size * 0.04))
+            .frame(width: size * 0.34, height: size * 0.34)
     }
 }

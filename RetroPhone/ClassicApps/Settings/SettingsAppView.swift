@@ -20,6 +20,9 @@ struct SettingsAppView: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         GroupedSection {
+                            link(L("스타일"), icon: .phone, detail: settings.value.themeEra == .ios7 ? "iOS 7" : "iOS 4") { StyleSettingsView() }
+                        }
+                        GroupedSection {
                             link(L("배경화면"), icon: .photos) { WallpaperSettingsView() }
                             link(L("홈 화면"), icon: .generic) { HomeSettingsView() }
                             link(L("잠금 화면"), icon: .clock) { LockSettingsView() }
@@ -57,6 +60,43 @@ struct SettingsAppView: View {
 }
 
 /// Sub-page scaffold with back button.
+/// Which iPhone era RetroPhone recreates: iOS 4 on iPhone 4 or iOS 7 on iPhone 5s.
+struct StyleSettingsView: View {
+    @Environment(\.retroTheme) private var theme
+    var body: some View {
+        let current = SettingsStore.shared.value.themeEra
+        SettingsPage(title: L("스타일")) {
+            GroupedSection(footer: L("홈 화면·잠금 화면·상태 표시줄·아이콘·메뉴 모양이 바뀝니다. 기본 배경화면을 쓰고 있으면 그 시대의 배경화면으로 함께 바뀝니다.")) {
+                ForEach(ThemeEra.allCases) { era in
+                    Button { Self.apply(era) } label: {
+                        TableRow(title: era.displayName) {
+                            if era == current {
+                                Image(systemName: "checkmark").font(.system(size: 15, weight: .bold))
+                                    .foregroundStyle(theme.isFlat ? theme.tint : Color(hex: 0x385487))
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(era == current ? .isSelected : [])
+                }
+            }
+        }
+    }
+
+    /// Switches era; built-in default wallpapers follow the era, custom ones are kept.
+    static func apply(_ era: ThemeEra) {
+        var value = SettingsStore.shared.value
+        guard value.themeEra != era else { return }
+        let oldDefault = WallpaperChoice.builtin(value.themeEra.defaultWallpaper)
+        let newDefault = WallpaperChoice.builtin(era.defaultWallpaper)
+        if value.homeWallpaper == oldDefault { value.homeWallpaper = newDefault }
+        if value.lockWallpaper == oldDefault { value.lockWallpaper = newDefault }
+        value.themeEra = era
+        Haptics.selection()
+        withAnimation(.easeInOut(duration: 0.3)) { SettingsStore.shared.value = value }
+    }
+}
+
 struct SettingsPage<Content: View>: View {
     var title: String
     @ViewBuilder var content: () -> Content

@@ -27,6 +27,43 @@ struct GroupedSection<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
+        if theme.isFlat { flatBody } else { classicBody }
+    }
+
+    /// iOS 7: small gray header, edge-to-edge white rows with inset hairlines.
+    private var flatBody: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            if let header {
+                Text(header)
+                    .font(.system(size: 13))
+                    .foregroundStyle(theme.groupHeaderText)
+                    .padding(.horizontal, 15)
+            }
+            VStack(spacing: 0) {
+                Group(subviews: content()) { subviews in
+                    ForEach(subviews.indices, id: \.self) { i in
+                        subviews[i].padding(.horizontal, 5)
+                        if i < subviews.count - 1 {
+                            Rectangle().fill(theme.cellSeparator).frame(height: 0.5).padding(.leading, 15)
+                        }
+                    }
+                }
+            }
+            .background(Color.white)
+            .overlay(alignment: .top) { Rectangle().fill(theme.cellSeparator).frame(height: 0.5) }
+            .overlay(alignment: .bottom) { Rectangle().fill(theme.cellSeparator).frame(height: 0.5) }
+            if let footer {
+                Text(footer)
+                    .font(.system(size: 13))
+                    .foregroundStyle(theme.groupHeaderText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 15)
+            }
+        }
+        .padding(.top, 22)
+    }
+
+    private var classicBody: some View {
         VStack(alignment: .leading, spacing: 6) {
             if let header {
                 Text(header)
@@ -82,8 +119,8 @@ struct TableRow<Accessory: View>: View {
                 Image(systemName: systemIcon).font(.system(size: 18)).foregroundStyle(theme.detailText).frame(width: 29)
             }
             Text(title)
-                .font(.retro(17, .bold))
-                .foregroundStyle(destructive ? Color(hex: 0xC8160B) : .black)
+                .font(.retro(17, theme.isFlat ? .regular : .bold))
+                .foregroundStyle(destructive ? (theme.isFlat ? Color(hex: 0xFF3B30) : Color(hex: 0xC8160B)) : .black)
                 .lineLimit(1)
             Spacer(minLength: 8)
             if let detail {
@@ -91,7 +128,9 @@ struct TableRow<Accessory: View>: View {
             }
             accessory()
             if chevron {
-                Image(systemName: "chevron.right").font(.system(size: 14, weight: .bold)).foregroundStyle(Color(hex: 0x7F7F7F))
+                Image(systemName: "chevron.right")
+                    .font(.system(size: theme.isFlat ? 13 : 14, weight: theme.isFlat ? .semibold : .bold))
+                    .foregroundStyle(theme.isFlat ? Color(hex: 0xC7C7CC) : Color(hex: 0x7F7F7F))
             }
         }
         .padding(.horizontal, 10)
@@ -123,8 +162,21 @@ struct PlainRow<Content: View>: View {
 
 /// Section header for plain tables (gray gradient bar with embossed white text).
 struct PlainSectionHeader: View {
+    @Environment(\.retroTheme) private var theme
     var title: String
     var body: some View {
+        if theme.isFlat {
+            Text(title)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.black)
+                .padding(.horizontal, 15)
+                .frame(maxWidth: .infinity, minHeight: 23, alignment: .leading)
+                .background(Color(hex: 0xF7F7F7))
+        } else {
+            classic
+        }
+    }
+    private var classic: some View {
         Text(title)
             .font(.retro(17, .bold))
             .foregroundStyle(.white)
@@ -143,8 +195,33 @@ struct RetroToggle: View {
     var label: String = ""
 
     var body: some View {
+        if theme.isFlat { flatSwitch } else { classicSwitch }
+    }
+
+    /// iOS 7 switch: green capsule, white round knob.
+    private var flatSwitch: some View {
+        ZStack(alignment: isOn ? .trailing : .leading) {
+            Capsule().fill(isOn ? theme.switchOnTop : Color.white)
+                .overlay(Capsule().stroke(isOn ? theme.switchOnTop : Color(hex: 0xE5E5EA), lineWidth: 1.5))
+            Circle().fill(.white)
+                .shadow(color: .black.opacity(0.25), radius: 2, y: 2)
+                .padding(2)
+        }
+        .frame(width: 51, height: 31)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            Haptics.selection()
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) { isOn.toggle() }
+        }
+        .accessibilityElement()
+        .accessibilityLabel(label)
+        .accessibilityValue(isOn ? L("켬") : L("끔"))
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private var classicSwitch: some View {
         let w: CGFloat = 94, h: CGFloat = 27
-        ZStack(alignment: .leading) {
+        return ZStack(alignment: .leading) {
             HStack(spacing: 0) {
                 Text(L("켬")).font(.retroFixed(16, .bold)).foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.4), radius: 0, y: -1)
@@ -189,6 +266,36 @@ struct RetroSegmented<T: Hashable>: View {
     var style: BarStyle = .blue
 
     var body: some View {
+        if theme.isFlat { flatBody } else { classicBody }
+    }
+
+    /// iOS 7: thin tinted outline, selected segment filled.
+    private var flatBody: some View {
+        let tint: Color = style == .blue ? theme.tint : .white
+        return HStack(spacing: 0) {
+            ForEach(Array(options.enumerated()), id: \.offset) { idx, option in
+                let selected = option.0 == selection
+                Button {
+                    Haptics.selection()
+                    selection = option.0
+                } label: {
+                    Text(option.1)
+                        .font(.system(size: 13))
+                        .foregroundStyle(selected ? (style == .blue ? Color.white : Color.black) : tint)
+                        .frame(maxWidth: .infinity, minHeight: 29)
+                        .background(selected ? tint : Color.clear)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                if idx < options.count - 1 { Rectangle().fill(tint).frame(width: 1) }
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 4, style: .continuous).stroke(tint, lineWidth: 1))
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var classicBody: some View {
         HStack(spacing: 0) {
             ForEach(Array(options.enumerated()), id: \.offset) { idx, option in
                 let selected = option.0 == selection
@@ -221,6 +328,7 @@ struct RetroSegmented<T: Hashable>: View {
 // MARK: - Search bar
 
 struct RetroSearchBar: View {
+    @Environment(\.retroTheme) private var theme
     @Binding var text: String
     var placeholder: String = L("검색")
     var body: some View {
@@ -238,18 +346,24 @@ struct RetroSearchBar: View {
             }
         }
         .padding(.horizontal, 10)
-        .frame(height: 30)
-        .background(Capsule().fill(.white))
-        .overlay(Capsule().stroke(Color(hex: 0x8A96A6), lineWidth: 1))
-        .padding(.horizontal, 6)
+        .frame(height: theme.isFlat ? 28 : 30)
+        .background {
+            if theme.isFlat { RoundedRectangle(cornerRadius: 5).fill(Color.white) }
+            else { Capsule().fill(Color.white).overlay(Capsule().stroke(Color(hex: 0x8A96A6), lineWidth: 1)) }
+        }
+        .padding(.horizontal, 8)
         .frame(height: 44)
-        .background(LinearGradient(colors: [Color(hex: 0xD0D7DF), Color(hex: 0xA8B4C2)], startPoint: .top, endPoint: .bottom))
+        .background {
+            if theme.isFlat { Color(hex: 0xC9C9CE) }
+            else { LinearGradient(colors: [Color(hex: 0xD0D7DF), Color(hex: 0xA8B4C2)], startPoint: .top, endPoint: .bottom) }
+        }
     }
 }
 
 // MARK: - Glossy button (big rounded, e.g. "Call", "Delete")
 
 struct GlossyButton: View {
+    @Environment(\.retroTheme) private var theme
     enum Tint { case green, red, blue, gray, black }
     var title: String
     var systemImage: String? = nil
@@ -267,7 +381,40 @@ struct GlossyButton: View {
         }
     }
 
+    private var flatColor: Color {
+        switch tint {
+        case .green: Color(hex: 0x4CD964)
+        case .red: Color(hex: 0xFF3B30)
+        case .blue: theme.tint
+        case .gray: Color.white
+        case .black: Color(hex: 0x1C1C1E)
+        }
+    }
+
     var body: some View {
+        if theme.isFlat { flatBody } else { classicBody }
+    }
+
+    /// iOS 7: flat colour, no gloss; the gray variant is a white button with tinted text.
+    private var flatBody: some View {
+        Button {
+            Haptics.tap()
+            action()
+        } label: {
+            HStack(spacing: 8) {
+                if let systemImage { Image(systemName: systemImage) }
+                Text(title)
+            }
+            .font(.system(size: 18, weight: .regular))
+            .foregroundStyle(tint == .gray ? theme.tint : .white)
+            .frame(maxWidth: .infinity, minHeight: height)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(flatColor))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(tint == .gray ? Color(hex: 0xC8C7CC) : .clear, lineWidth: 0.5))
+        }
+        .buttonStyle(PressDimStyle())
+    }
+
+    private var classicBody: some View {
         Button {
             Haptics.tap()
             SoundService.shared.play(.tock)
@@ -340,6 +487,7 @@ struct RetroAlertButton {
 }
 
 struct RetroAlertModifier: ViewModifier {
+    @Environment(\.retroTheme) private var theme
     @Binding var isPresented: Bool
     var title: String
     var message: String?
@@ -348,6 +496,58 @@ struct RetroAlertModifier: ViewModifier {
     func body(content: Content) -> some View {
         content.overlay {
             if isPresented {
+                if theme.isFlat { flatAlert } else { classicAlert }
+            }
+        }
+        .animation(.easeOut(duration: 0.18), value: isPresented)
+    }
+
+    private func press(_ b: RetroAlertButton) {
+        isPresented = false
+        b.action()
+    }
+
+    /// iOS 7 alert: white frosted panel, hairline-separated blue text buttons.
+    private var flatAlert: some View {
+        ZStack {
+            Color.black.opacity(0.4).ignoresSafeArea()
+            VStack(spacing: 0) {
+                VStack(spacing: 4) {
+                    Text(title).font(.system(size: 17, weight: .semibold)).foregroundStyle(.black)
+                        .multilineTextAlignment(.center)
+                    if let message {
+                        Text(message).font(.system(size: 13)).foregroundStyle(.black)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+                .padding(.horizontal, 16).padding(.top, 19).padding(.bottom, 18)
+                Rectangle().fill(Color.black.opacity(0.2)).frame(height: 0.5)
+                let stacked = buttons.count > 2
+                let layout = stacked ? AnyLayout(VStackLayout(spacing: 0)) : AnyLayout(HStackLayout(spacing: 0))
+                layout {
+                    ForEach(Array(buttons.enumerated()), id: \.offset) { i, b in
+                        if i > 0 {
+                            Rectangle().fill(Color.black.opacity(0.2))
+                                .frame(width: stacked ? nil : 0.5, height: stacked ? 0.5 : 44)
+                        }
+                        Button { press(b) } label: {
+                            Text(b.title).font(.system(size: 17, weight: b.isPreferred ? .semibold : .regular))
+                                .foregroundStyle(theme.tint)
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(PressDimStyle())
+                    }
+                }
+            }
+            .frame(width: 270)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(hex: 0xF9F9F9).opacity(0.97)))
+            .transition(.scale(scale: 1.2).combined(with: .opacity))
+        }
+        .zIndex(100)
+    }
+
+    private var classicAlert: some View {
                 ZStack {
                     Color.black.opacity(0.45).ignoresSafeArea()
                     VStack(spacing: 10) {
@@ -399,9 +599,6 @@ struct RetroAlertModifier: ViewModifier {
                     .transition(.scale(scale: 1.15).combined(with: .opacity))
                 }
                 .zIndex(100)
-            }
-        }
-        .animation(.easeOut(duration: 0.18), value: isPresented)
     }
 }
 

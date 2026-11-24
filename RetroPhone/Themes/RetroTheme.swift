@@ -10,10 +10,11 @@ extension Color {
     }
 }
 
-/// Design tokens for an OS "era". Only iOS 4 exists today; iOS 5/6 can be added as new values
-/// without touching component code (components read `@Environment(\.retroTheme)`).
+/// Design tokens for an OS "era". Components read `@Environment(\.retroTheme)`; where iOS 7's flat
+/// look differs in shape (not just colour) they branch on `isFlat`.
 struct RetroTheme {
     var era: ThemeEra
+    var isFlat: Bool { era == .ios7 }
     // Navigation bar (UINavigationBar default blue-gray)
     var navTop: Color
     var navMid: Color
@@ -53,6 +54,23 @@ struct RetroTheme {
         tint: Color(hex: 0x2F6BDB),
         switchOnTop: Color(hex: 0x3D7EEB), switchOnBottom: Color(hex: 0x76A6F5),
         dockGlass: Color.white.opacity(0.18), homeLabelShadow: Color.black.opacity(0.9))
+
+    /// iOS 7: white translucent bars, blue text buttons, light gray grouped tables, green switches.
+    static let ios7 = RetroTheme(
+        era: .ios7,
+        navTop: Color(hex: 0xF8F8F8), navMid: Color(hex: 0xF8F8F8), navBottom: Color(hex: 0xF8F8F8),
+        navBorderTop: Color(hex: 0xF8F8F8), navBorderBottom: Color(hex: 0xB2B2B2),
+        navTitleShadow: .clear,
+        barButtonTop: .clear, barButtonBottom: .clear,
+        doneButtonTop: Color(hex: 0x007AFF), doneButtonBottom: Color(hex: 0x007AFF),
+        pinstripeBase: Color(hex: 0xEFEFF4), pinstripeLine: Color(hex: 0xEFEFF4),
+        cellBorder: Color(hex: 0xC8C7CC), cellSeparator: Color(hex: 0xC8C7CC),
+        detailText: Color(hex: 0x8E8E93), groupHeaderText: Color(hex: 0x6D6D72),
+        tint: Color(hex: 0x007AFF),
+        switchOnTop: Color(hex: 0x4CD964), switchOnBottom: Color(hex: 0x4CD964),
+        dockGlass: Color.white.opacity(0.3), homeLabelShadow: Color.black.opacity(0.35))
+
+    static func forEra(_ era: ThemeEra) -> RetroTheme { era == .ios7 ? .ios7 : .ios4 }
 }
 
 private struct RetroThemeKey: EnvironmentKey { static let defaultValue = RetroTheme.ios4 }
@@ -63,24 +81,39 @@ extension EnvironmentValues {
     }
 }
 
-// MARK: Typography — iOS 4 used Helvetica; Korean falls back to Apple SD Gothic Neo automatically.
+// MARK: Typography — iOS 4 used Helvetica, iOS 7 Helvetica Neue (lighter weights).
+// Korean falls back to Apple SD Gothic Neo automatically.
 
 enum RetroWeight { case regular, bold }
 
 extension Font {
+    private static func face(_ weight: RetroWeight) -> String {
+        if SettingsStore.shared.value.themeEra == .ios7 {
+            return weight == .bold ? "HelveticaNeue-Medium" : "HelveticaNeue"
+        }
+        return weight == .bold ? "Helvetica-Bold" : "Helvetica"
+    }
     static func retro(_ size: CGFloat, _ weight: RetroWeight = .regular) -> Font {
-        let scaled = size * SettingsStore.shared.value.textScale
-        return .custom(weight == .bold ? "Helvetica-Bold" : "Helvetica", fixedSize: scaled)
+        .custom(face(weight), fixedSize: size * SettingsStore.shared.value.textScale)
     }
     /// Unscaled variant for chrome that must keep its size (status bar, icon labels).
     static func retroFixed(_ size: CGFloat, _ weight: RetroWeight = .regular) -> Font {
-        .custom(weight == .bold ? "Helvetica-Bold" : "Helvetica", fixedSize: size)
+        .custom(face(weight), fixedSize: size)
     }
 }
 
 extension View {
-    /// The classic engraved/embossed text look: a 1pt offset shadow.
+    /// The classic engraved/embossed text look: a 1pt offset shadow (none in the flat iOS 7 look).
     func embossed(_ color: Color = .white.opacity(0.7), y: CGFloat = 1) -> some View {
-        shadow(color: color, radius: 0, x: 0, y: y)
+        modifier(EmbossModifier(color: color, y: y))
+    }
+}
+
+private struct EmbossModifier: ViewModifier {
+    @Environment(\.retroTheme) private var theme
+    var color: Color
+    var y: CGFloat
+    func body(content: Content) -> some View {
+        content.shadow(color: theme.isFlat ? .clear : color, radius: 0, x: 0, y: y)
     }
 }

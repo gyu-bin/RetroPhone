@@ -24,14 +24,36 @@ enum IconArt: String, Codable, CaseIterable, Identifiable {
 
 /// Icon background + artwork, clipped to the classic rounded square, with the iOS-style gloss.
 struct RetroIconView: View {
+    @Environment(\.retroTheme) private var theme
     var art: IconArt
     var size: CGFloat
     var customImage: UIImage? = nil
     var gloss: Bool = true
 
-    static func cornerRadius(_ size: CGFloat) -> CGFloat { size * 0.175 }
+    static func cornerRadius(_ size: CGFloat) -> CGFloat {
+        size * (SettingsStore.shared.value.themeEra == .ios7 ? 0.225 : 0.175)
+    }
 
     var body: some View {
+        if theme.isFlat { flatBody } else { classicBody }
+    }
+
+    /// iOS 7: flat art, rounder corners, no gloss, border or drop shadow.
+    private var flatBody: some View {
+        ZStack {
+            if let customImage {
+                Image(uiImage: customImage).resizable().scaledToFill()
+            } else {
+                FlatIconArtwork(art: art, s: size)
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius(size), style: .continuous))
+        .drawingGroup()
+        .accessibilityHidden(true)
+    }
+
+    @ViewBuilder private var classicBody: some View {
         let shape = RoundedRectangle(cornerRadius: Self.cornerRadius(size), style: .continuous)
         ZStack {
             if let customImage {
@@ -543,4 +565,146 @@ struct SymbolTile {
         .bolt: .init(top: 0xFFE45C, bottom: 0xF2B800, symbol: "bolt.fill", glyphTop: 0x3A2A10, glyphBottom: 0x1A1408),
         .atSign: .init(top: 0x3A3A3A, bottom: 0x0A0A0A, symbol: "at.circle.fill"),
     ]
+}
+
+// MARK: - iOS 7 (flat) artwork
+
+/// Flat, iOS 7-era artwork for the built-in apps: bright gradients, thin white glyphs, no gloss.
+/// Original vector drawings (shapes + SF Symbols), like the classic set.
+struct FlatIconArtwork: View {
+    var art: IconArt
+    var s: CGFloat
+
+    static let flatArts: Set<IconArt> = [.phone, .messages, .contacts, .photos, .camera, .music, .browser, .notes,
+                                         .calendar, .weather, .calculator, .clock, .maps, .voiceMemos, .settings]
+
+    private func grad(_ top: UInt32, _ bottom: UInt32) -> LinearGradient {
+        LinearGradient(colors: [Color(hex: top), Color(hex: bottom)], startPoint: .top, endPoint: .bottom)
+    }
+
+    private func glyph(_ name: String, _ scale: CGFloat, _ color: Color = .white, weight: Font.Weight = .regular) -> some View {
+        Image(systemName: name).font(.system(size: s * scale, weight: weight)).foregroundStyle(color)
+    }
+
+    var body: some View {
+        ZStack {
+            switch art {
+            case .phone:
+                grad(0x5BF674, 0x0BD318)
+                glyph("phone.fill", 0.5)
+            case .messages:
+                grad(0x5BF674, 0x0BD318)
+                glyph("message.fill", 0.52)
+            case .contacts:
+                grad(0xF7F7F9, 0xD6D6DB)
+                glyph("person.crop.circle.fill", 0.62, Color(hex: 0x8E8E93))
+                VStack(spacing: s * 0.03) {
+                    ForEach([0xFF3B30, 0xFF9500, 0x4CD964, 0x007AFF], id: \.self) { c in
+                        Rectangle().fill(Color(hex: UInt32(c))).frame(width: s * 0.06, height: s * 0.12)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            case .photos:
+                Color.white
+                ForEach(0..<8, id: \.self) { i in
+                    Capsule()
+                        .fill(Color(hue: Double(i) / 8, saturation: 0.75, brightness: 1).opacity(0.78))
+                        .frame(width: s * 0.2, height: s * 0.38)
+                        .offset(y: -s * 0.16)
+                        .rotationEffect(.degrees(Double(i) * 45))
+                        .blendMode(.multiply)
+                }
+            case .camera:
+                grad(0xDBDDDE, 0x8E8E93)
+                glyph("camera.fill", 0.46, Color(hex: 0x2C2C2E))
+            case .music:
+                grad(0xFF5E3A, 0xFF2A68)
+                glyph("music.note", 0.5)
+            case .browser:
+                Color.white
+                Circle().fill(grad(0x1AD6FD, 0x1D62F0)).frame(width: s * 0.78, height: s * 0.78)
+                Circle().stroke(Color.white.opacity(0.85), style: StrokeStyle(lineWidth: s * 0.02, dash: [s * 0.012, s * 0.04]))
+                    .frame(width: s * 0.66, height: s * 0.66)
+                CompassNeedle().fill(Color(hex: 0xFF3B30)).frame(width: s * 0.1, height: s * 0.56).rotationEffect(.degrees(45))
+                CompassNeedle().fill(Color.white).frame(width: s * 0.1, height: s * 0.56).rotationEffect(.degrees(225))
+            case .notes:
+                Color.white
+                VStack(spacing: 0) {
+                    grad(0xFFE57A, 0xFFCC00).frame(height: s * 0.24)
+                    VStack(spacing: s * 0.12) {
+                        ForEach(0..<5, id: \.self) { _ in Rectangle().fill(Color(hex: 0xD1D1D6)).frame(height: max(0.5, s * 0.012)) }
+                    }
+                    .padding(.top, s * 0.1)
+                    Spacer(minLength: 0)
+                }
+            case .calendar:
+                Color.white
+                let now = Date()
+                VStack(spacing: -s * 0.04) {
+                    Text(RetroFormat.date(now, template: "EEEE"))
+                        .font(.system(size: s * 0.15, weight: .regular)).foregroundStyle(Color(hex: 0xFF3B30))
+                        .lineLimit(1).minimumScaleFactor(0.5)
+                    Text("\(Calendar.current.component(.day, from: now))")
+                        .font(.system(size: s * 0.56, weight: .thin)).foregroundStyle(.black)
+                }
+                .padding(.horizontal, s * 0.06)
+            case .weather:
+                grad(0x1D77EF, 0x81F3FD)
+                Circle().fill(Color(hex: 0xFFD60A)).frame(width: s * 0.34, height: s * 0.34).offset(x: -s * 0.1, y: -s * 0.1)
+                glyph("cloud.fill", 0.46).offset(x: s * 0.06, y: s * 0.08)
+            case .calculator:
+                grad(0x8E8E93, 0x4A4A4E)
+                let cell = s * 0.3
+                VStack(spacing: s * 0.06) {
+                    HStack(spacing: s * 0.06) { calcKey("plus", cell, Color(hex: 0x3A3A3C)); calcKey("minus", cell, Color(hex: 0x3A3A3C)) }
+                    HStack(spacing: s * 0.06) { calcKey("multiply", cell, Color(hex: 0x3A3A3C)); calcKey("equal", cell, Color(hex: 0xFF9500)) }
+                }
+            case .clock:
+                Color.black
+                Circle().fill(Color.white).frame(width: s * 0.82, height: s * 0.82)
+                ForEach(0..<12, id: \.self) { i in
+                    Rectangle().fill(Color.black).frame(width: max(0.7, s * 0.018), height: s * 0.06)
+                        .offset(y: -s * 0.34).rotationEffect(.degrees(Double(i) * 30))
+                }
+                Capsule().fill(Color.black).frame(width: s * 0.035, height: s * 0.24).offset(y: -s * 0.1).rotationEffect(.degrees(-60))
+                Capsule().fill(Color.black).frame(width: s * 0.03, height: s * 0.32).offset(y: -s * 0.14).rotationEffect(.degrees(60))
+                Capsule().fill(Color(hex: 0xFF3B30)).frame(width: max(0.6, s * 0.012), height: s * 0.36).offset(y: -s * 0.12).rotationEffect(.degrees(160))
+            case .maps:
+                Color(hex: 0xF4F1E8)
+                Rectangle().fill(Color(hex: 0xB9E3A5)).frame(width: s * 0.45, height: s * 0.35).offset(x: -s * 0.3, y: -s * 0.3)
+                Rectangle().fill(Color.white).frame(width: s * 1.4, height: s * 0.1).rotationEffect(.degrees(-30))
+                Rectangle().fill(Color(hex: 0xFFD60A)).frame(width: s * 0.08, height: s * 1.4).rotationEffect(.degrees(20))
+                Circle().fill(Color(hex: 0x007AFF)).frame(width: s * 0.36, height: s * 0.36).offset(x: s * 0.12, y: s * 0.12)
+                glyph("location.fill", 0.2).offset(x: s * 0.12, y: s * 0.12)
+            case .voiceMemos:
+                grad(0x2C2C2E, 0x000000)
+                glyph("waveform", 0.5, .white, weight: .light)
+                Circle().fill(Color(hex: 0xFF3B30)).frame(width: s * 0.12, height: s * 0.12).offset(y: s * 0.32)
+            case .settings:
+                grad(0xC7C7CC, 0x8E8E93)
+                glyph("gearshape.fill", 0.66, Color(hex: 0x48484A))
+            default:
+                IconArtwork(art: art, s: s)
+            }
+        }
+        .frame(width: s, height: s)
+    }
+
+    private func calcKey(_ symbol: String, _ size: CGFloat, _ fill: Color) -> some View {
+        RoundedRectangle(cornerRadius: size * 0.2, style: .continuous).fill(fill)
+            .frame(width: size, height: size)
+            .overlay(Image(systemName: symbol).font(.system(size: size * 0.5, weight: .medium)).foregroundStyle(.white))
+    }
+}
+
+/// One half of a compass needle (a thin diamond tip pointing up).
+struct CompassNeedle: Shape {
+    func path(in r: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: r.midX, y: r.minY))
+        p.addLine(to: CGPoint(x: r.maxX, y: r.midY))
+        p.addLine(to: CGPoint(x: r.minX, y: r.midY))
+        p.closeSubpath()
+        return p
+    }
 }

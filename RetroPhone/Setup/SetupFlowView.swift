@@ -84,7 +84,7 @@ struct SetupFlowView: View {
         VStack(spacing: 0) {
             GroupedSection(header: L("내 아이폰 그대로 (권장)"),
                            footer: imported ? L("가져온 배치가 적용되었습니다. 홈 화면에서 언제든 편집할 수 있습니다.")
-                                            : L("실제 홈 화면을 페이지마다 스크린샷으로 찍어 두었다가 선택하면, 앱 이름과 위치를 기기 안에서 읽어 지금 쓰는 홈 화면을 2010년 스타일로 똑같이 만듭니다.")) {
+                                            : L("실제 홈 화면을 페이지마다 스크린샷으로 찍어 두었다가 선택하면, 앱 이름과 위치를 기기 안에서 읽어 지금 쓰는 홈 화면을 옛 아이폰 스타일로 똑같이 만듭니다.")) {
                 Button { showImport = true } label: {
                     TableRow(title: imported ? L("다시 가져오기…") : L("내 홈 화면 가져오기…"), systemIcon: "photo.stack", chevron: true,
                              accessory: { if imported { Image(systemName: "checkmark").foregroundStyle(Color(hex: 0x385487)) } })

@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 enum BuiltinWallpaper: String, Codable, CaseIterable, Identifiable {
-    case droplets, aurora, linen, night, sunset
+    case droplets, aurora, linen, night, sunset, wave
     var id: String { rawValue }
     var displayName: String {
         switch self {
@@ -11,6 +11,7 @@ enum BuiltinWallpaper: String, Codable, CaseIterable, Identifiable {
         case .linen: L("리넨")
         case .night: L("밤하늘")
         case .sunset: L("노을")
+        case .wave: L("물결")
         }
     }
 }
@@ -27,8 +28,19 @@ enum WeatherLocationSetting: Codable, Hashable {
     case city(name: String, latitude: Double, longitude: Double)
 }
 
-/// Theme era — iOS 4 today; split out so iOS 5/6 styles can be added later.
-enum ThemeEra: String, Codable, CaseIterable { case ios4 }
+/// Theme era: iOS 4 (iPhone 4, skeuomorphic) or iOS 7 (iPhone 5s, flat).
+enum ThemeEra: String, Codable, CaseIterable, Identifiable {
+    case ios4, ios7
+    var id: String { rawValue }
+    var displayName: String {
+        switch self {
+        case .ios4: "iOS 4 · iPhone 4"
+        case .ios7: "iOS 7 · iPhone 5s"
+        }
+    }
+    /// The built-in wallpaper that belongs to this era.
+    var defaultWallpaper: BuiltinWallpaper { self == .ios7 ? .wave : .droplets }
+}
 
 struct RetroSettings: Codable, Equatable {
     var setupCompleted = false
