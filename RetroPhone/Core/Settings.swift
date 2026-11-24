@@ -28,6 +28,13 @@ enum WeatherLocationSetting: Codable, Hashable {
     case city(name: String, latitude: Double, longitude: Double)
 }
 
+/// Front colour of the virtual phone body (bezels and home button).
+enum BodyColor: String, Codable, CaseIterable, Identifiable {
+    case black, white
+    var id: String { rawValue }
+    var displayName: String { self == .black ? L("블랙") : L("화이트") }
+}
+
 /// Theme era: iOS 4 (iPhone 4, skeuomorphic) or iOS 7 (iPhone 5s, flat).
 enum ThemeEra: String, Codable, CaseIterable, Identifiable {
     case ios4, ios7
@@ -65,6 +72,10 @@ struct RetroSettings: Codable, Equatable {
     var classicBezel = true
     /// Whether the one-time "make it look like my iPhone" offer has been shown.
     var homeImportOffered = false
+    /// Body colour; nil follows the era (iPhone 4 black, iPhone 5s white/silver).
+    var bodyColor: BodyColor? = nil
+
+    var effectiveBodyColor: BodyColor { bodyColor ?? (themeEra == .ios7 ? .white : .black) }
 
     init() {}
 
@@ -90,6 +101,7 @@ struct RetroSettings: Codable, Equatable {
         showBatteryPercentage = (try? c.decode(Bool.self, forKey: .showBatteryPercentage)) ?? d.showBatteryPercentage
         classicBezel = (try? c.decode(Bool.self, forKey: .classicBezel)) ?? d.classicBezel
         homeImportOffered = (try? c.decode(Bool.self, forKey: .homeImportOffered)) ?? d.homeImportOffered
+        bodyColor = try? c.decodeIfPresent(BodyColor.self, forKey: .bodyColor)
     }
 
     static let defaults = RetroSettings()

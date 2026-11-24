@@ -102,6 +102,14 @@ extension Font {
     }
 }
 
+extension Font {
+    /// iOS 7's system face: Helvetica Neue (UltraLight/Light/Regular/Medium).
+    enum NeueWeight: String { case ultraLight = "-UltraLight", light = "-Light", regular = "", medium = "-Medium", bold = "-Bold" }
+    static func neue(_ size: CGFloat, _ weight: NeueWeight = .regular) -> Font {
+        .custom("HelveticaNeue" + weight.rawValue, fixedSize: size)
+    }
+}
+
 extension View {
     /// The classic engraved/embossed text look: a 1pt offset shadow (none in the flat iOS 7 look).
     func embossed(_ color: Color = .white.opacity(0.7), y: CGFloat = 1) -> some View {

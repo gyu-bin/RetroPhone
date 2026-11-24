@@ -49,14 +49,14 @@ struct RetroStatusBar: View {
     }
 
     private func timeFont(_ size: CGFloat) -> Font {
-        theme.isFlat ? .system(size: size - 1, weight: .semibold) : .retroFixed(size, .bold)
+        theme.isFlat ? .neue(size - 1, .medium) : .retroFixed(size, .bold)
     }
 
     @ViewBuilder private var background: some View {
         if theme.isFlat {
             // iOS 7: the status bar takes the colour of whatever is under it.
             switch style {
-            case .gray: Color(hex: 0xF8F8F8)
+            case .gray: Color(hex: 0xF7F7F7)
             case .black: Color.black
             case .translucent: Color.clear
             }
@@ -143,12 +143,22 @@ struct VirtualHomeButton: View {
     var size: CGFloat = 30
 
     var body: some View {
+        let white = SettingsStore.shared.value.effectiveBodyColor == .white
         ZStack {
             if theme.isFlat {
                 // iPhone 5s: flat sapphire button inside a metal (Touch ID) ring, no square glyph.
-                Circle().fill(LinearGradient(colors: [Color(hex: 0x141416), Color(hex: 0x26262A)], startPoint: .top, endPoint: .bottom))
-                Circle().stroke(LinearGradient(colors: [Color(hex: 0x8E8E93), Color(hex: 0x4A4A4E), Color(hex: 0x9A9AA0)],
+                Circle().fill(LinearGradient(colors: white ? [Color(hex: 0xFAFAFA), Color(hex: 0xE8E8EC)] : [Color(hex: 0x141416), Color(hex: 0x26262A)],
+                                             startPoint: .top, endPoint: .bottom))
+                Circle().stroke(LinearGradient(colors: white ? [Color(hex: 0xD1D1D6), Color(hex: 0x9A9AA0), Color(hex: 0xE5E5EA)]
+                                                             : [Color(hex: 0x8E8E93), Color(hex: 0x4A4A4E), Color(hex: 0x9A9AA0)],
                                                startPoint: .top, endPoint: .bottom), lineWidth: max(1.5, size * 0.05))
+            } else if white {
+                // White iPhone 4: white button, gray rounded square.
+                Circle().fill(LinearGradient(colors: [Color(hex: 0xFFFFFF), Color(hex: 0xE4E4E8)], startPoint: .top, endPoint: .bottom))
+                Circle().stroke(Color(hex: 0xC7C7CC), lineWidth: 1.5)
+                RoundedRectangle(cornerRadius: size * 0.085, style: .continuous)
+                    .stroke(Color(hex: 0x9A9AA0), lineWidth: max(1.2, size * 0.04))
+                    .frame(width: size * 0.34, height: size * 0.34)
             } else {
                 classicFace
             }

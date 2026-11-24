@@ -62,7 +62,7 @@ struct FolderOverlay: View {
                             .accessibilityIdentifier("folderNameField")
                     } else {
                         Text(folder?.name ?? "")
-                            .font(theme.isFlat ? .system(size: 26, weight: .light) : .retroFixed(20, .bold))
+                            .font(theme.isFlat ? .neue(26, .light) : .retroFixed(20, .bold))
                             .foregroundStyle(.white)
                             .shadow(color: theme.isFlat ? .clear : .black.opacity(0.8), radius: 0, y: -1)
                             .frame(maxWidth: .infinity, alignment: theme.isFlat ? .center : .leading)

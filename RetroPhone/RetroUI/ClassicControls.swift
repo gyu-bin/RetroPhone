@@ -35,7 +35,7 @@ struct GroupedSection<Content: View>: View {
         VStack(alignment: .leading, spacing: 7) {
             if let header {
                 Text(header)
-                    .font(.system(size: 13))
+                    .font(.neue(14))
                     .foregroundStyle(theme.groupHeaderText)
                     .padding(.horizontal, 15)
             }
@@ -54,7 +54,7 @@ struct GroupedSection<Content: View>: View {
             .overlay(alignment: .bottom) { Rectangle().fill(theme.cellSeparator).frame(height: 0.5) }
             if let footer {
                 Text(footer)
-                    .font(.system(size: 13))
+                    .font(.neue(14))
                     .foregroundStyle(theme.groupHeaderText)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 15)
@@ -167,7 +167,7 @@ struct PlainSectionHeader: View {
     var body: some View {
         if theme.isFlat {
             Text(title)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.neue(15, .medium))
                 .foregroundStyle(.black)
                 .padding(.horizontal, 15)
                 .frame(maxWidth: .infinity, minHeight: 23, alignment: .leading)
@@ -280,7 +280,7 @@ struct RetroSegmented<T: Hashable>: View {
                     selection = option.0
                 } label: {
                     Text(option.1)
-                        .font(.system(size: 13))
+                        .font(.neue(13))
                         .foregroundStyle(selected ? (style == .blue ? Color.white : Color.black) : tint)
                         .frame(maxWidth: .infinity, minHeight: 29)
                         .background(selected ? tint : Color.clear)
@@ -405,7 +405,7 @@ struct GlossyButton: View {
                 if let systemImage { Image(systemName: systemImage) }
                 Text(title)
             }
-            .font(.system(size: 18, weight: .regular))
+            .font(.neue(18))
             .foregroundStyle(tint == .gray ? theme.tint : .white)
             .frame(maxWidth: .infinity, minHeight: height)
             .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(flatColor))
@@ -513,10 +513,10 @@ struct RetroAlertModifier: ViewModifier {
             Color.black.opacity(0.4).ignoresSafeArea()
             VStack(spacing: 0) {
                 VStack(spacing: 4) {
-                    Text(title).font(.system(size: 17, weight: .semibold)).foregroundStyle(.black)
+                    Text(title).font(.neue(17, .medium)).foregroundStyle(.black)
                         .multilineTextAlignment(.center)
                     if let message {
-                        Text(message).font(.system(size: 13)).foregroundStyle(.black)
+                        Text(message).font(.neue(14)).foregroundStyle(.black)
                             .multilineTextAlignment(.center)
                     }
                 }
@@ -531,7 +531,7 @@ struct RetroAlertModifier: ViewModifier {
                                 .frame(width: stacked ? nil : 0.5, height: stacked ? 0.5 : 44)
                         }
                         Button { press(b) } label: {
-                            Text(b.title).font(.system(size: 17, weight: b.isPreferred ? .semibold : .regular))
+                            Text(b.title).font(.neue(17, b.isPreferred ? .medium : .regular))
                                 .foregroundStyle(theme.tint)
                                 .frame(maxWidth: .infinity, minHeight: 44)
                                 .contentShape(Rectangle())
@@ -541,7 +541,7 @@ struct RetroAlertModifier: ViewModifier {
                 }
             }
             .frame(width: 270)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(hex: 0xF9F9F9).opacity(0.97)))
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color(hex: 0xF7F7F7).opacity(0.97)))
             .transition(.scale(scale: 1.2).combined(with: .opacity))
         }
         .zIndex(100)

@@ -80,6 +80,24 @@ struct StyleSettingsView: View {
                     .accessibilityAddTraits(era == current ? .isSelected : [])
                 }
             }
+            GroupedSection(header: L("본체 색상")) {
+                let body = SettingsStore.shared.value.effectiveBodyColor
+                ForEach(BodyColor.allCases) { color in
+                    Button {
+                        Haptics.selection()
+                        SettingsStore.shared.value.bodyColor = color
+                    } label: {
+                        TableRow(title: color.displayName) {
+                            if color == body {
+                                Image(systemName: "checkmark").font(.system(size: 15, weight: .bold))
+                                    .foregroundStyle(theme.isFlat ? theme.tint : Color(hex: 0x385487))
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(color == body ? .isSelected : [])
+                }
+            }
         }
     }
 

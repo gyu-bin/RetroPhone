@@ -590,10 +590,10 @@ struct FlatIconArtwork: View {
         ZStack {
             switch art {
             case .phone:
-                grad(0x5BF674, 0x0BD318)
+                grad(0x87FC70, 0x0BD318)
                 glyph("phone.fill", 0.5)
             case .messages:
-                grad(0x5BF674, 0x0BD318)
+                grad(0x87FC70, 0x0BD318)
                 glyph("message.fill", 0.52)
             case .contacts:
                 grad(0xF7F7F9, 0xD6D6DB)
@@ -615,7 +615,7 @@ struct FlatIconArtwork: View {
                         .blendMode(.multiply)
                 }
             case .camera:
-                grad(0xDBDDDE, 0x8E8E93)
+                grad(0xDBDDDE, 0x898C90)
                 glyph("camera.fill", 0.46, Color(hex: 0x2C2C2E))
             case .music:
                 grad(0xFF5E3A, 0xFF2A68)
@@ -642,10 +642,10 @@ struct FlatIconArtwork: View {
                 let now = Date()
                 VStack(spacing: -s * 0.04) {
                     Text(RetroFormat.date(now, template: "EEEE"))
-                        .font(.system(size: s * 0.15, weight: .regular)).foregroundStyle(Color(hex: 0xFF3B30))
+                        .font(.neue(s * 0.15)).foregroundStyle(Color(hex: 0xFF3B30))
                         .lineLimit(1).minimumScaleFactor(0.5)
                     Text("\(Calendar.current.component(.day, from: now))")
-                        .font(.system(size: s * 0.56, weight: .thin)).foregroundStyle(.black)
+                        .font(.neue(s * 0.56, .ultraLight)).foregroundStyle(.black)
                 }
                 .padding(.horizontal, s * 0.06)
             case .weather:
@@ -653,7 +653,7 @@ struct FlatIconArtwork: View {
                 Circle().fill(Color(hex: 0xFFD60A)).frame(width: s * 0.34, height: s * 0.34).offset(x: -s * 0.1, y: -s * 0.1)
                 glyph("cloud.fill", 0.46).offset(x: s * 0.06, y: s * 0.08)
             case .calculator:
-                grad(0x8E8E93, 0x4A4A4E)
+                grad(0xDBDDDE, 0x898C90)
                 let cell = s * 0.3
                 VStack(spacing: s * 0.06) {
                     HStack(spacing: s * 0.06) { calcKey("plus", cell, Color(hex: 0x3A3A3C)); calcKey("minus", cell, Color(hex: 0x3A3A3C)) }
@@ -681,7 +681,7 @@ struct FlatIconArtwork: View {
                 glyph("waveform", 0.5, .white, weight: .light)
                 Circle().fill(Color(hex: 0xFF3B30)).frame(width: s * 0.12, height: s * 0.12).offset(y: s * 0.32)
             case .settings:
-                grad(0xC7C7CC, 0x8E8E93)
+                grad(0xDBDDDE, 0x898C90)
                 glyph("gearshape.fill", 0.66, Color(hex: 0x48484A))
             default:
                 IconArtwork(art: art, s: s)

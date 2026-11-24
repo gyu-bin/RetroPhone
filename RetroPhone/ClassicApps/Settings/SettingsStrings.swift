@@ -51,7 +51,7 @@ extension EnglishTable {
         "홈 화면 배치를 초기화할까요?": "Reset Home Screen layout?", "홈 화면 편집": "Edit Home Screen",
         "홈 화면에서 아이콘을 길게 눌러도 편집 모드가 시작됩니다. 편집 중 아이콘을 탭하면 이름과 아이콘을 바꿀 수 있습니다.": "Touch and hold an icon on the Home Screen to start editing. While editing, tap an icon to change its name and image.",
         "화면 맨 아래의 막대를 위로 쓸어 올리세요": "Swipe up from the bar at the bottom", "화씨 (°F)": "Fahrenheit (°F)", "효과음": "Sound Effects",
-        "배경화면": "Wallpaper", "스타일": "Style",
+        "배경화면": "Wallpaper", "스타일": "Style", "본체 색상": "Body Color", "블랙": "Black", "화이트": "White",
         "홈 화면·잠금 화면·상태 표시줄·아이콘·메뉴 모양이 바뀝니다. 기본 배경화면을 쓰고 있으면 그 시대의 배경화면으로 함께 바뀝니다.":
             "Changes the home screen, lock screen, status bar, icons and menus. A built-in default wallpaper switches to that era's wallpaper too.", "사진": "Photos", "카메라": "Camera", "연락처": "Contacts", "캘린더": "Calendar",
     ]

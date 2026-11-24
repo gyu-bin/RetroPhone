@@ -65,7 +65,7 @@ struct EmbossedText: View {
     var color: Color = .white
     var body: some View {
         Text(text)
-            .font(theme.isFlat ? .system(size: size, weight: weight == .bold ? .medium : .light) : .retroFixed(size, weight))
+            .font(theme.isFlat ? .neue(size, weight == .bold ? .medium : .light) : .retroFixed(size, weight))
             .foregroundStyle(color)
             .shadow(color: .black.opacity(theme.isFlat ? 0 : 0.55), radius: 0, y: -1)
             .lineLimit(1)

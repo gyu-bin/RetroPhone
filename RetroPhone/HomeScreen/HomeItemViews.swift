@@ -36,7 +36,7 @@ struct IconLabel: View {
     var width: CGFloat
     var body: some View {
         Text(text)
-            .font(theme.isFlat ? .system(size: size, weight: .regular) : .retroFixed(size, .bold))
+            .font(theme.isFlat ? .neue(size) : .retroFixed(size, .bold))
             .foregroundStyle(.white)
             .shadow(color: .black.opacity(theme.isFlat ? 0.3 : 0.95), radius: theme.isFlat ? 1 : 1.2, x: 0, y: theme.isFlat ? 0.5 : 1)
             .lineLimit(1)

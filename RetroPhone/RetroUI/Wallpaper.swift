@@ -139,9 +139,10 @@ enum WallpaperRenderer {
         c.setFillColor(ui(0x03050C).cgColor); c.addPath(p.cgPath); c.fillPath()
     }
 
-    /// iOS 7-era style: bright blue→violet→coral gradient with soft light waves and bokeh.
+    /// iOS 7-era style: light sky blue into deep blue and teal, with soft light waves and bokeh.
     private static func drawWave(_ c: CGContext, _ size: CGSize, _ rng: inout SeededRandom) {
-        linear(c, size, [ui(0x1C8BD9), ui(0x3D5BD6), ui(0x8A4FC8), ui(0xE7678F), ui(0xF6A25E)], [0, 0.3, 0.55, 0.8, 1])
+        linear(c, size, [ui(0x7FDBF8), ui(0x3FAEEA), ui(0x2A7CD8), ui(0x2559BE), ui(0x2E8FC9), ui(0x5CC6D6)],
+               [0, 0.2, 0.42, 0.62, 0.84, 1])
         let w = size.width, h = size.height
         // Translucent light bands sweeping across.
         for i in 0..<4 {

@@ -14,7 +14,7 @@ struct ClassicNavBar<Leading: View, Trailing: View>: View {
         ZStack {
             BarBackground(style: style)
             Text(title)
-                .font(theme.isFlat ? .system(size: 17, weight: .semibold) : .retroFixed(20, .bold))
+                .font(theme.isFlat ? .neue(17, .medium) : .retroFixed(20, .bold))
                 .foregroundStyle(theme.isFlat && style == .blue ? Color.black : .white)
                 .shadow(color: theme.isFlat ? .clear : (style == .blue ? theme.navTitleShadow : .black), radius: 0, x: 0, y: -1)
                 .lineLimit(1)
@@ -47,7 +47,7 @@ struct BarBackground: View {
         ZStack(alignment: .top) {
             if theme.isFlat {
                 // iOS 7: flat translucent bar with a hairline edge.
-                (style == .blue ? Color(hex: 0xF8F8F8).opacity(0.97) : Color.black.opacity(style == .blackTranslucent ? 0.6 : 0.92))
+                (style == .blue ? Color(hex: 0xF7F7F7).opacity(0.97) : Color.black.opacity(style == .blackTranslucent ? 0.6 : 0.92))
                 VStack { Spacer(); Rectangle().fill(style == .blue ? theme.navBorderBottom : Color.white.opacity(0.15)).frame(height: 0.5) }
             } else {
             switch style {
@@ -102,7 +102,7 @@ struct ClassicBarButton: View {
                 if let systemImage {
                     Image(systemName: systemImage).font(.system(size: 19, weight: .regular))
                 } else {
-                    Text(title).font(.system(size: 17, weight: kind == .done ? .semibold : .regular)).lineLimit(1)
+                    Text(title).font(.neue(17, kind == .done ? .medium : .regular)).lineLimit(1)
                 }
             }
             .foregroundStyle(color)

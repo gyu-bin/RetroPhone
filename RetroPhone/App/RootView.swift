@@ -216,9 +216,15 @@ extension View {
 /// Black glass top bezel (covers the Dynamic Island band).
 struct TopBezel: View {
     var body: some View {
+        let white = SettingsStore.shared.value.effectiveBodyColor == .white
         ZStack(alignment: .bottom) {
-            LinearGradient(colors: [Color(hex: 0x1A1A1C), Color(hex: 0x050505)], startPoint: .top, endPoint: .bottom)
-            Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
+            if white {
+                LinearGradient(colors: [Color(hex: 0xF7F7F8), Color(hex: 0xE6E6EA)], startPoint: .top, endPoint: .bottom)
+                Rectangle().fill(Color.black.opacity(0.12)).frame(height: 0.5)
+            } else {
+                LinearGradient(colors: [Color(hex: 0x1A1A1C), Color(hex: 0x050505)], startPoint: .top, endPoint: .bottom)
+                Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
+            }
         }
         .accessibilityHidden(true)
     }
@@ -231,9 +237,15 @@ struct ChinBezel: View {
     var systemInset: CGFloat
 
     var body: some View {
+        let white = SettingsStore.shared.value.effectiveBodyColor == .white
         ZStack(alignment: .top) {
-            LinearGradient(colors: [Color(hex: 0x050505), Color(hex: 0x17171A)], startPoint: .top, endPoint: .bottom)
-            Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
+            if white {
+                LinearGradient(colors: [Color(hex: 0xE6E6EA), Color(hex: 0xF7F7F8)], startPoint: .top, endPoint: .bottom)
+                Rectangle().fill(Color.black.opacity(0.12)).frame(height: 0.5)
+            } else {
+                LinearGradient(colors: [Color(hex: 0x050505), Color(hex: 0x17171A)], startPoint: .top, endPoint: .bottom)
+                Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
+            }
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
                 VirtualHomeButton(router: router, size: 56)

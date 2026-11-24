@@ -59,8 +59,9 @@ final class RetroPhoneUITests: XCTestCase {
         // editor by itself); tap after that window, as a person would.
         Thread.sleep(forTimeInterval: 1.6)
         notes.tap()                                         // tap while editing → rename / icon sheet
-        XCTAssertTrue(app.staticTexts["아이콘 편집"].waitForExistence(timeout: 3))
-        XCTAssertTrue(element("iconNameField").exists)
+        // The editor sheet can take several seconds to appear when the whole suite runs.
+        XCTAssertTrue(app.staticTexts["아이콘 편집"].waitForExistence(timeout: 8))
+        XCTAssertTrue(element("iconNameField").waitForExistence(timeout: 5))
     }
 
     func testDragAppOntoAppCreatesFolderThatOpens() {
