@@ -55,6 +55,9 @@ final class RetroPhoneUITests: XCTestCase {
         XCTAssertTrue(notes.waitForExistence(timeout: 5))
         notes.press(forDuration: 1.2)                       // enter edit mode
         XCTAssertTrue(element("homeDoneButton").waitForExistence(timeout: 3))
+        // The finger lift that ends the hold is ignored for up to 1.5 s (so it doesn't open the
+        // editor by itself); tap after that window, as a person would.
+        Thread.sleep(forTimeInterval: 1.6)
         notes.tap()                                         // tap while editing → rename / icon sheet
         XCTAssertTrue(app.staticTexts["아이콘 편집"].waitForExistence(timeout: 3))
         XCTAssertTrue(element("iconNameField").exists)

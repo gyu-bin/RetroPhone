@@ -29,7 +29,12 @@ struct WeatherAppView: View {
         .retroStatusBar(.black)
         .onAppear {
             if router.pendingDeepLink == .weather { router.pendingDeepLink = nil }
-            service.refreshIfNeeded()
+            // Opening the Weather app is the moment the location prompt may appear; the widget's
+            // background refresh never prompts and leaves `.needsPermission`.
+            if service.status != .loading,
+               service.snapshot == nil || service.isStale || service.status == .needsPermission {
+                service.refresh()
+            }
         }
         .onChange(of: router.pendingDeepLink) { _, link in
             if link == .weather { router.pendingDeepLink = nil }
@@ -263,6 +268,12 @@ private struct WeatherFrontSide: View {
                 }
                 .frame(maxWidth: 220)
                 GlossyButton(title: L("도시 선택"), tint: .blue) { flip() }
+                    .frame(maxWidth: 220)
+            case .needsPermission:
+                EmbossedText(text: L("위치 권한이 필요합니다"), size: 18)
+                GlossyButton(title: L("현재 위치 사용"), tint: .blue) { service.refresh() }
+                    .frame(maxWidth: 220)
+                GlossyButton(title: L("도시 선택"), tint: .gray) { flip() }
                     .frame(maxWidth: 220)
             case .failed(let message):
                 EmbossedText(text: message, size: 16)

@@ -19,7 +19,6 @@ struct PhotoViewer: View {
     var onClose: () -> Void
 
     @State private var index: Int?
-    @State private var zoomed = false
     @State private var showWallpaperSheet = false
     @State private var wallpaperDone = false
     @State private var wallpaperFailed = false
@@ -72,24 +71,8 @@ struct PhotoViewer: View {
     }
 
     private func pager(size: CGSize) -> some View {
-        ScrollView(.horizontal) {
-            LazyHStack(spacing: 0) {
-                ForEach(0..<count, id: \.self) { i in
-                    ZoomablePhotoPage(asset: context.assets.object(at: i), size: size,
-                                      onTap: toggleBars,
-                                      onZoomChange: { isZoomed in
-                                          if i == currentIndex { zoomed = isZoomed }
-                                      })
-                        .frame(width: size.width, height: size.height)
-                }
-            }
-            .scrollTargetLayout()
-        }
-        .scrollTargetBehavior(.paging)
-        .scrollPosition(id: $index)
-        .scrollIndicators(.hidden)
-        .scrollDisabled(zoomed)
-        .onChange(of: index) { zoomed = false }
+        PhotoPager(assets: context.assets, index: $index, startIndex: context.startIndex, onTap: toggleBars)
+            .frame(width: size.width, height: size.height)
     }
 
     private var bars: some View {
@@ -160,57 +143,7 @@ struct PhotoViewer: View {
     }
 }
 
-// MARK: - Page
-
-struct ZoomablePhotoPage: View {
-    let asset: PHAsset
-    let size: CGSize
-    var onTap: () -> Void
-    var onZoomChange: (Bool) -> Void
-
-    @State private var loader = AssetImageLoader()
-    @State private var wantsDetail = false
-    @Environment(\.displayScale) private var displayScale
-
-    var body: some View {
-        ZoomImageView(image: loader.image, onSingleTap: onTap) { isZoomed in
-            onZoomChange(isZoomed)
-            if isZoomed && !wantsDetail {
-                wantsDetail = true
-                load()
-            }
-        }
-        .onAppear { load() }
-        .onDisappear { loader.cancel() }
-        .accessibilityElement()
-        .accessibilityLabel(L("사진"))
-        .accessibilityAddTraits(.isImage)
-    }
-
-    /// Screen-sized image first; a sharper one only once the user zooms in.
-    private func load() {
-        let factor: CGFloat = wantsDetail ? 2.5 : 1
-        let target = CGSize(width: min(4096, size.width * displayScale * factor),
-                            height: min(4096, size.height * displayScale * factor))
-        loader.load(asset, targetSize: target, contentMode: .aspectFit, options: PhotoRequestOptions.fullScreen)
-    }
-}
-
-struct ZoomImageView: UIViewRepresentable {
-    var image: UIImage?
-    var onSingleTap: () -> Void
-    var onZoomChange: (Bool) -> Void
-
-    func makeUIView(context: Context) -> ZoomingScrollView {
-        ZoomingScrollView(frame: .zero)
-    }
-
-    func updateUIView(_ view: ZoomingScrollView, context: Context) {
-        view.onSingleTap = onSingleTap
-        view.onZoomChange = onZoomChange
-        view.display(image)
-    }
-}
+// MARK: - Zoom view (one page of PhotoPager)
 
 /// UIScrollView-based zooming (pinch, double tap) with the image centred at every scale.
 final class ZoomingScrollView: UIScrollView, UIScrollViewDelegate {

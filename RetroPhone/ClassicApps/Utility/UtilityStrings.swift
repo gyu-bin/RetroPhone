@@ -21,7 +21,7 @@ extension EnglishTable {
 
         // Weather
         "날씨 설정": "Weather Settings", "단위": "Unit", "위치": "Location", "도시 검색": "Find a City",
-        "도시 이름": "City name", "도시 선택": "Choose City", "검색 결과가 없습니다": "No results found",
+        "도시 이름": "City name", "도시 선택": "Choose City", "현재 위치 사용": "Use Current Location", "검색 결과가 없습니다": "No results found",
         "위치 권한이 꺼져 있습니다": "Location access is off",
         "위치 권한이 꺼져 있어 저장된 정보를 표시합니다": "Location access is off — showing saved weather",
         "iOS 설정에서 위치 접근을 허용하거나, 뒷면에서 도시를 지정하세요.": "Allow location access in iOS Settings, or choose a city on the back.",
