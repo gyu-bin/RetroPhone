@@ -75,7 +75,7 @@ struct FolderIconCell: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            FolderTile(apps: folder.apps, size: metrics.iconSize, highlighted: highlighted)
+            FolderTile(apps: folder.apps, size: metrics.iconSize, highlighted: highlighted, cover: folder.cover)
                 .overlay(alignment: .topLeading) {
                     if editing, let onDelete { DeleteBadge(action: onDelete).offset(x: -9, y: -9) }
                 }
@@ -94,6 +94,7 @@ struct FolderTile: View {
     var apps: [AppID]
     var size: CGFloat
     var highlighted: Bool = false
+    var cover: String? = nil
 
     var body: some View {
         let store = LayoutStore.shared
@@ -102,12 +103,20 @@ struct FolderTile: View {
         ZStack {
             shape.fill(LinearGradient(colors: [Color.black.opacity(0.28), Color.black.opacity(0.5)], startPoint: .top, endPoint: .bottom))
             shape.strokeBorder(LinearGradient(colors: [.black.opacity(0.6), .white.opacity(0.35)], startPoint: .top, endPoint: .bottom), lineWidth: 1.2)
-            LazyVGrid(columns: Array(repeating: GridItem(.fixed(mini), spacing: size * 0.06), count: 3), spacing: size * 0.06) {
-                ForEach(Array(apps.prefix(9).enumerated()), id: \.offset) { _, app in
-                    RetroIconView(art: store.art(for: app), size: mini, customImage: store.customIcon(for: app), gloss: true)
+            if apps.isEmpty, let cover, let img = FileStore.loadImage(cover) {
+                // The real folder tile from the screenshot (its mini icons), under the classic glass.
+                Image(uiImage: img).resizable().scaledToFill()
+                    .frame(width: size * 0.9, height: size * 0.9)
+                    .clipShape(RoundedRectangle(cornerRadius: RetroIconView.cornerRadius(size * 0.9), style: .continuous))
+                    .opacity(0.95)
+            } else {
+                LazyVGrid(columns: Array(repeating: GridItem(.fixed(mini), spacing: size * 0.06), count: 3), spacing: size * 0.06) {
+                    ForEach(Array(apps.prefix(9).enumerated()), id: \.offset) { _, app in
+                        RetroIconView(art: store.art(for: app), size: mini, customImage: store.customIcon(for: app), gloss: true)
+                    }
                 }
+                .frame(width: size * 0.84, height: size * 0.84, alignment: .topLeading)
             }
-            .frame(width: size * 0.84, height: size * 0.84, alignment: .topLeading)
         }
         .frame(width: size, height: size)
         .scaleEffect(highlighted ? 1.18 : 1)

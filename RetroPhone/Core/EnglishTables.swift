@@ -106,8 +106,11 @@ extension EnglishTable {
         "찾은 앱 없음": "No Apps Found",
         "켜면 이 아이콘이 RetroPhone의 클래식 앱 대신 실제 iOS 앱을 엽니다(예: 메시지 기록 보기). 실제 앱의 디자인은 바뀌지 않습니다.": "When on, this icon opens the real iOS app instead of RetroPhone's classic version (e.g. to see your message history). The real app's design isn't changed.",
         "클래식 앱": "Classic Apps",
-        "폴더 · 안의 앱은 직접 옮겨 담으세요": "Folder · move apps into it yourself",
         "홈 화면 스크린샷 선택…": "Choose Home Screen Screenshots…",
         "홈 화면을 바꿀까요?": "Replace Home Screen?",
+        "지금 쓰는 아이폰처럼 만들까요?": "Make It Look Like My iPhone?",
+        "실제 홈 화면 스크린샷을 고르면 위젯·폴더·앱 배치를 그대로 옮겨 2010년 스타일로 바꿔 드립니다. 나중에 설정 › 홈 화면에서도 할 수 있습니다.": "Pick screenshots of your real Home Screen and RetroPhone copies its widgets, folders and apps in 2010 style. You can also do this later in Settings › Home Screen.",
+        "나중에": "Later", "가져오기": "Import", "폴더 %d": "Folder %d", "기기 없음": "No Device",
+        "폴더 · 이름을 정해 주세요 (이모지 이름은 읽을 수 없음)": "Folder · name it (emoji names can't be read)",
     ]
 }

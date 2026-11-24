@@ -21,7 +21,8 @@ struct CalendarWidget: View {
             }
             if size == .large { eventsList(limit: 4) }
         }
-        .background(LinearGradient(colors: [.white, Color(hex: 0xE2E4E8)], startPoint: .top, endPoint: .bottom))
+        .background(LinearGradient(colors: [Color(hex: 0x3A3C40), Color(hex: 0x1E1F22)], startPoint: .top, endPoint: .bottom))
+        .environment(\.colorScheme, .dark)
     }
 
     private var header: some View {
@@ -31,7 +32,7 @@ struct CalendarWidget: View {
             HStack {
                 arrow("chevron.left", L("이전 달"), -1)
                 Spacer()
-                EmbossedText(text: RetroFormat.date(month, template: size == .small ? "MMM" : "yMMMM"), size: size == .small ? 13 : 15)
+                EmbossedText(text: RetroFormat.date(month, template: size == .small ? "MMM" : "yMMMM"), size: size == .small ? 14 : 15)
                 Spacer()
                 arrow("chevron.right", L("다음 달"), 1)
             }
@@ -60,20 +61,20 @@ struct CalendarWidget: View {
         VStack(alignment: .leading, spacing: 4) {
             if !service.hasFullAccess {
                 Text(service.isDenied ? L("캘린더 접근이 거부되었습니다") : L("일정을 보려면 캘린더를 열어 접근을 허용하세요"))
-                    .font(.retroFixed(11)).foregroundStyle(Color(hex: 0x6A6A6A))
+                    .font(.retroFixed(11)).foregroundStyle(Color(hex: 0xB0B4BC))
             } else {
                 let events = service.events(from: Calendar.current.startOfDay(for: Date()),
                                             to: Date().addingTimeInterval(7 * 86400)).prefix(limit)
                 if events.isEmpty {
-                    Text(L("예정된 일정 없음")).font(.retroFixed(12)).foregroundStyle(Color(hex: 0x6A6A6A))
+                    Text(L("예정된 일정 없음")).font(.retroFixed(12)).foregroundStyle(Color(hex: 0xB0B4BC))
                 }
                 ForEach(Array(events), id: \.eventIdentifier) { e in
                     HStack(spacing: 5) {
                         Circle().fill(Color(cgColor: e.calendar.cgColor)).frame(width: 7, height: 7)
                         VStack(alignment: .leading, spacing: 0) {
-                            Text(e.title ?? "").font(.retroFixed(12, .bold)).lineLimit(1)
+                            Text(e.title ?? "").font(.retroFixed(12, .bold)).foregroundStyle(.white).lineLimit(1)
                             Text(e.isAllDay ? L("하루 종일") : RetroFormat.date(e.startDate, template: "MMMd jm"))
-                                .font(.retroFixed(10)).foregroundStyle(Color(hex: 0x385487))
+                                .font(.retroFixed(10)).foregroundStyle(Color(hex: 0x9EC0FF))
                         }
                     }
                 }
@@ -98,7 +99,7 @@ struct MiniMonthGrid: View {
         VStack(spacing: 1) {
             HStack(spacing: 0) {
                 ForEach(Array(MonthGrid.weekdaySymbols().enumerated()), id: \.offset) { _, s in
-                    Text(s).font(.retroFixed(fontSize - 1, .bold)).foregroundStyle(Color(hex: 0x6A6E78)).frame(maxWidth: .infinity)
+                    Text(s).font(.retroFixed(fontSize - 1, .bold)).foregroundStyle(Color(hex: 0xB8BCC4)).frame(maxWidth: .infinity)
                 }
             }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 1) {
@@ -107,14 +108,13 @@ struct MiniMonthGrid: View {
                     let isToday = cal.isDate(day, inSameDayAs: today)
                     ZStack {
                         if isToday {
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(LinearGradient(colors: [Color(hex: 0x6E9BEA), Color(hex: 0x2558C4)], startPoint: .top, endPoint: .bottom))
+                            Circle().fill(Color.white).frame(width: fontSize * 1.8, height: fontSize * 1.8)
                         }
                         Text("\(cal.component(.day, from: day))")
                             .font(.retroFixed(fontSize, .bold))
-                            .foregroundStyle(isToday ? .white : (inMonth ? Color(hex: 0x2A2E36) : Color(hex: 0xA8ACB4)))
+                            .foregroundStyle(isToday ? Color(hex: 0x111111) : (inMonth ? Color(hex: 0xF2F2F2) : .clear))
                         if eventDays.contains(cal.startOfDay(for: day)) && inMonth {
-                            Circle().fill(isToday ? Color.white : Color(hex: 0x4A5568)).frame(width: 3, height: 3).offset(y: fontSize * 0.75)
+                            Circle().fill(Color(hex: 0xFF5A4C)).frame(width: 3, height: 3).offset(y: fontSize * 0.85)
                         }
                     }
                     .frame(height: compact ? 13 : 17)

@@ -43,6 +43,8 @@ struct WidgetSpec: Codable, Hashable {
 struct Folder: Codable, Hashable {
     var name: String
     var apps: [AppID]
+    /// Image of the real folder tile (cropped from a home-screen screenshot), shown while the folder is empty.
+    var cover: String? = nil
 }
 
 struct HomeItem: Codable, Hashable, Identifiable {
@@ -89,7 +91,8 @@ struct Placement: Equatable {
 /// All mutations are pure value operations so they can be unit-tested and undone.
 struct HomeLayout: Codable, Equatable {
     static let columns = 4
-    static let rows = 5
+    /// 6 rows like a modern iPhone home screen, so an imported page fits on one page.
+    static let rows = 6
     static let dockCapacity = 4
 
     var version = 1

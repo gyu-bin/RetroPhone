@@ -78,6 +78,20 @@ struct HomeScreenView: View {
                     isPresented: Binding(get: { launchError != nil }, set: { if !$0 { launchError = nil } }),
                     message: L("앱이 설치되어 있지 않거나 실행 링크를 지원하지 않습니다."),
                     buttons: launchErrorButtons)
+        .task(id: router.screen) {
+            // One-time offer to mirror the user's real home screen (not during UI tests).
+            guard router.screen == .home, !SettingsStore.shared.value.homeImportOffered, !LaunchOptions.isUITest else { return }
+            try? await Task.sleep(for: .milliseconds(700))
+            guard router.screen == .home else { return }
+            SettingsStore.shared.value.homeImportOffered = true
+            offerImport = true
+        }
+        .retroAlert(L("지금 쓰는 아이폰처럼 만들까요?"), isPresented: $offerImport,
+                    message: L("실제 홈 화면 스크린샷을 고르면 위젯·폴더·앱 배치를 그대로 옮겨 2010년 스타일로 바꿔 드립니다. 나중에 설정 › 홈 화면에서도 할 수 있습니다."),
+                    buttons: [RetroAlertButton(title: L("나중에")), RetroAlertButton(title: L("가져오기"), isPreferred: true) {
+                        showImport = true
+                    }])
+        .fullScreenCover(isPresented: $showImport) { HomeImportView() }
         .onChange(of: itemGestureActive) { _, active in
             // A cancelled gesture never calls onEnded; finish the drag where the finger last was.
             if !active, drag.isActive, let m = drag.metrics { drop(metrics: m) }
@@ -465,6 +479,8 @@ struct HomeScreenView: View {
     }
 
     @State private var unconfiguredApp: AppID?
+    @State private var offerImport = false
+    @State private var showImport = false
 
     private var launchErrorButtons: [RetroAlertButton] {
         guard let ext = launchError else { return [] }

@@ -29,10 +29,12 @@ final class HomeLayoutTests: XCTestCase {
     }
 
     func testNormalizeSpillsOverflowToNextPage() {
-        var l = HomeLayout(pages: [(0..<22).map { _ in app("phone") }], dock: [])
+        let capacity = HomeLayout.columns * HomeLayout.rows
+        var l = HomeLayout(pages: [(0..<(capacity + 2)).map { _ in app("phone") }], dock: [])
         l.normalize()
         XCTAssertEqual(l.pages.count, 2)
-        XCTAssertEqual(l.pages[0].count, 20)
+        guard l.pages.count == 2 else { return }
+        XCTAssertEqual(l.pages[0].count, capacity)
         XCTAssertEqual(l.pages[1].count, 2)
     }
 

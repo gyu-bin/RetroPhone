@@ -51,6 +51,8 @@ struct RetroSettings: Codable, Equatable {
     /// iPhone 4-style thick top/bottom bezels (black top bar over the Dynamic Island area,
     /// chin with a large home button). The "screen" sits between them.
     var classicBezel = true
+    /// Whether the one-time "make it look like my iPhone" offer has been shown.
+    var homeImportOffered = false
 
     init() {}
 
@@ -75,6 +77,7 @@ struct RetroSettings: Codable, Equatable {
         themeEra = (try? c.decode(ThemeEra.self, forKey: .themeEra)) ?? d.themeEra
         showBatteryPercentage = (try? c.decode(Bool.self, forKey: .showBatteryPercentage)) ?? d.showBatteryPercentage
         classicBezel = (try? c.decode(Bool.self, forKey: .classicBezel)) ?? d.classicBezel
+        homeImportOffered = (try? c.decode(Bool.self, forKey: .homeImportOffered)) ?? d.homeImportOffered
     }
 
     static let defaults = RetroSettings()

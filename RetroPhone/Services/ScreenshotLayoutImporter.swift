@@ -201,3 +201,174 @@ private extension CGImagePropertyOrientation {
         }
     }
 }
+
+// MARK: - Grid-fitted analysis (v3)
+
+extension ScreenshotLayoutImporter {
+    /// iOS home-screen grid fitted to one screenshot (normalized coordinates).
+    struct GridModel: Equatable {
+        var colX0: CGFloat          // center x of column 0
+        var colPitch: CGFloat       // distance between column centers
+        var rowY0: CGFloat          // label center y of row 0
+        var rowPitch: CGFloat       // distance between label rows
+        var rows: Int
+        var aspect: CGFloat         // image width / height
+
+        func colX(_ c: CGFloat) -> CGFloat { colX0 + c * colPitch }
+        func rowY(_ r: Int) -> CGFloat { rowY0 + CGFloat(r) * rowPitch }
+        /// Icon side in normalized *width* units.
+        var iconSide: CGFloat { colPitch * 0.68 }
+    }
+
+    enum EntryKind: Equatable {
+        case app(text: String, match: AppID?)
+        case widget(kind: WidgetKind?, size: WidgetSize, text: String)
+        /// A filled grid cell whose label couldn't be read (typically a folder named with emoji).
+        case unlabeled
+    }
+
+    struct Entry: Equatable {
+        var row: Int
+        var col: Int
+        var kind: EntryKind
+    }
+
+    struct HomeAnalysis: Equatable {
+        var grid: GridModel
+        var entries: [Entry]   // ordered by (row, col) of the top-left cell
+    }
+
+    static let widgetNames: [String: WidgetKind] = {
+        var m: [String: WidgetKind] = [:]
+        let pairs: [(String, WidgetKind)] = [
+            ("날씨", .weather), ("weather", .weather), ("배터리", .battery), ("batteries", .battery), ("battery", .battery),
+            ("캘린더", .calendar), ("calendar", .calendar), ("시계", .analogClock), ("clock", .analogClock),
+            ("사진", .photo), ("photos", .photo), ("메모", .notes), ("notes", .notes), ("음악", .music), ("music", .music),
+        ]
+        for (k, v) in pairs { m[normalize(k)] = v }
+        return m
+    }()
+
+    /// Fits the 4-column grid to the labels that look like app/widget labels, finds widgets from their
+    /// name labels (centered between columns), and marks filled cells without a readable label.
+    static func analyzeHome(_ all: [Label], aspect: CGFloat, dockTop: CGFloat = 0.87) -> HomeAnalysis {
+        // 1. Plausible label candidates.
+        let candidates = all.filter { l in
+            let t = l.text.trimmingCharacters(in: .whitespaces)
+            guard (1...16).contains(t.count), l.center.y > 0.05, l.center.y < dockTop, l.box.width < 0.3 else { return false }
+            if ["검색", "search"].contains(t.lowercased()) || t.contains("°") { return false }
+            if t.range(of: #"^[0-9:%\s.,+-]+$"#, options: .regularExpression) != nil { return false }
+            return true
+        }
+        // 2. Anchors: known app names or known widget names.
+        var model = GridModel(colX0: 0.159, colPitch: 0.227, rowY0: 0.19, rowPitch: 0.227 * aspect * 1.08, rows: 6, aspect: aspect)
+        func colIndex(_ x: CGFloat, _ m: GridModel) -> CGFloat { ((x - m.colX0) / m.colPitch * 2).rounded() / 2 }
+        let anchors = candidates.filter { match($0.text) != nil || widgetNames[normalize($0.text)] != nil }
+        let colPoints = anchors.map { (colIndex($0.center.x, model), $0.center.x) }.filter { (0...3).contains($0.0) }
+        if Set(colPoints.map(\.0)).count >= 2 {
+            // Least squares x = a + idx·b
+            let n = CGFloat(colPoints.count)
+            let sx = colPoints.reduce(0) { $0 + $1.0 }, sy = colPoints.reduce(0) { $0 + $1.1 }
+            let sxx = colPoints.reduce(0) { $0 + $1.0 * $1.0 }, sxy = colPoints.reduce(0) { $0 + $1.0 * $1.1 }
+            let b = (n * sxy - sx * sy) / max(0.0001, n * sxx - sx * sx)
+            if b > 0.15 && b < 0.32 { model.colPitch = b; model.colX0 = (sy - b * sx) / n }
+        }
+        model.rowPitch = model.colPitch * aspect * 1.08
+        // 3. Rows: anchor label rows relative to the top-most anchor.
+        let anchorYs = anchors.map(\.center.y).sorted()
+        guard let topY = anchorYs.first else { return HomeAnalysis(grid: model, entries: []) }
+        func rowIndex(_ y: CGFloat) -> Int { Int(((y - topY) / model.rowPitch).rounded()) }
+
+        // 4. Classify anchors into apps (integer column) and widgets (half column / known widget names).
+        struct Raw { var row: Int; var colIdx: CGFloat; var label: Label }
+        var raws: [Raw] = []
+        for a in candidates {
+            let ci = colIndex(a.center.x, model)
+            guard (0...3).contains(ci) else { continue }
+            let ri = rowIndex(a.center.y)
+            // Must sit on a label row (rejects wallpaper text, badge digits, widget content).
+            let yErr = abs(a.center.y - (topY + CGFloat(ri) * model.rowPitch))
+            guard yErr < model.rowPitch * 0.12, abs(a.center.x - model.colX(ci)) < model.colPitch * 0.18 else { continue }
+            raws.append(Raw(row: ri, colIdx: ci, label: a))
+        }
+        // Widgets first, so their bodies can exclude text inside them.
+        var occupied = [[Bool]](repeating: [Bool](repeating: false, count: 4), count: 32)
+        var entries: [Entry] = []
+        var widgetRects: [(rows: ClosedRange<Int>, cols: ClosedRange<Int>)] = []
+        let rowShift = 8 // allow widgets to start above the top anchor row
+        for r in raws where r.colIdx != r.colIdx.rounded(.down) || r.colIdx == 1.5 {
+            let isWide = r.colIdx == 1.5
+            let cols = isWide ? 0...3 : Int(r.colIdx - 0.5)...Int(r.colIdx + 0.5)
+            guard cols.lowerBound >= 0, cols.upperBound <= 3 else { continue }
+            var span = 2
+            if isWide, r.row - 3 >= -rowShift + 0 {
+                // 4×4 if the two rows above the usual 4×2 body hold nothing else.
+                let above = raws.contains { $0.row == r.row - 2 || $0.row == r.row - 3 }
+                if !above && r.row >= 3 { span = 4 }
+            }
+            let rows = (r.row - span + 1)...r.row
+            if widgetRects.contains(where: { $0.rows.overlaps(rows) && $0.cols.overlaps(cols) }) { continue }
+            widgetRects.append((rows, cols))
+            let size: WidgetSize = isWide ? (span == 4 ? .large : .wide) : .small
+            entries.append(Entry(row: rows.lowerBound, col: cols.lowerBound,
+                                 kind: .widget(kind: widgetNames[normalize(r.label.text)], size: size, text: r.label.text)))
+        }
+        func inWidget(_ row: Int, _ col: Int) -> Bool { widgetRects.contains { $0.rows.contains(row) && $0.cols.contains(col) } }
+        for r in raws where r.colIdx == r.colIdx.rounded(.down) && r.colIdx != 1.5 {
+            let col = Int(r.colIdx)
+            guard !inWidget(r.row, col), !entries.contains(where: { $0.row == r.row && $0.col == col }) else { continue }
+            entries.append(Entry(row: r.row, col: col, kind: .app(text: r.label.text, match: match(r.label.text))))
+        }
+        // 5. Normalize rows so the top-most item starts at row 0, then compute the grid extent.
+        let minRow = entries.map(\.row).min() ?? 0
+        for i in entries.indices { entries[i].row -= minRow }
+        widgetRects = widgetRects.map { (($0.rows.lowerBound - minRow)...($0.rows.upperBound - minRow), $0.cols) }
+        model.rowY0 = topY + CGFloat(minRow) * model.rowPitch
+        var rowCount = 0
+        while rowCount < 7 && model.rowY(rowCount) < dockTop { rowCount += 1 }
+        model.rows = max(rowCount, (entries.map(\.row).max() ?? 0) + 1)
+        // 6. Filled cells without a readable label (emoji-named folders, icon-only labels).
+        for row in 0..<model.rows {
+            for col in 0..<4 {
+                let covered = widgetRects.contains { $0.rows.contains(row) && $0.cols.contains(col) }
+                    || entries.contains { $0.row == row && $0.col == col }
+                if !covered { entries.append(Entry(row: row, col: col, kind: .unlabeled)) }
+            }
+        }
+        _ = occupied
+        occupied.removeAll()
+        entries.sort { ($0.row, $0.col) < ($1.row, $1.col) }
+        return HomeAnalysis(grid: model, entries: entries)
+    }
+
+    /// Pixel rect of the icon in a grid cell (inset so the original rounded corners are cut away).
+    static func cellIconRect(_ grid: GridModel, row: Int, col: Int, imageSize: CGSize) -> CGRect {
+        let side = grid.iconSide * imageSize.width
+        let cx = grid.colX(CGFloat(col)) * imageSize.width
+        let labelY = grid.rowY(row) * imageSize.height
+        let cy = labelY - 0.032 * imageSize.width - side / 2 - 0.006 * imageSize.height
+        return CGRect(x: cx - side / 2, y: cy - side / 2, width: side, height: side)
+            .insetBy(dx: side * 0.1, dy: side * 0.1).integral
+    }
+
+    /// 0…1 "something is drawn here" score for a crop: colorfulness + local contrast. Wallpaper areas
+    /// score low; icons and folder tiles (with their colorful mini-icons) score high.
+    static func busyness(_ image: UIImage) -> CGFloat {
+        guard let cg = image.cgImage else { return 0 }
+        let w = 24, h = 24
+        var px = [UInt8](repeating: 0, count: w * h * 4)
+        guard let ctx = CGContext(data: &px, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return 0 }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+        var chroma = 0.0, lum: [Double] = []
+        for i in stride(from: 0, to: px.count, by: 4) {
+            let r = Double(px[i]), g = Double(px[i + 1]), b = Double(px[i + 2])
+            chroma += max(r, g, b) - min(r, g, b)
+            lum.append(0.299 * r + 0.587 * g + 0.114 * b)
+        }
+        let mean = lum.reduce(0, +) / Double(lum.count)
+        let sd = (lum.map { ($0 - mean) * ($0 - mean) }.reduce(0, +) / Double(lum.count)).squareRoot()
+        return CGFloat(min(1, (chroma / Double(w * h)) / 120 + sd / 160))
+    }
+}

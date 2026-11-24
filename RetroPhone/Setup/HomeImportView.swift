@@ -14,12 +14,16 @@ struct HomeImportView: View {
     var onFinished: (() -> Void)? = nil
 
     struct Item: Identifiable {
+        enum Kind { case app(AppID?), widget(WidgetKind, WidgetSize), folder }
         let id = UUID()
+        var kind: Kind
+        /// App label, or the (editable) folder name.
         var label: String
-        var match: AppID?
-        var isFolder: Bool
         var crop: UIImage?
         var include = true
+
+        var match: AppID? { if case .app(let m) = kind { return m }; return nil }
+        var isFolder: Bool { if case .folder = kind { return true }; return false }
     }
     struct Page: Identifiable {
         let id = UUID()
@@ -108,7 +112,13 @@ struct HomeImportView: View {
                 HStack(spacing: 10) {
                     itemIcon(item)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(item.label).font(.retro(16, .bold)).lineLimit(1)
+                        if item.isFolder {
+                            TextField(L("폴더 이름"), text: Binding(get: { pages[pageIndex].items[itemIndex].label },
+                                                                 set: { pages[pageIndex].items[itemIndex].label = $0 }))
+                                .font(.retro(16, .bold))
+                        } else {
+                            Text(item.label).font(.retro(16, .bold)).lineLimit(1)
+                        }
                         Text(subtitle(item)).font(.retro(12)).foregroundStyle(Color(hex: 0x385487)).lineLimit(1)
                     }
                     Spacer()
@@ -121,15 +131,27 @@ struct HomeImportView: View {
     }
 
     private func subtitle(_ item: Item) -> String {
-        if item.isFolder { return L("폴더 · 안의 앱은 직접 옮겨 담으세요") }
-        if let id = item.match { return store.name(for: id) + " · " + (id.builtin != nil ? L("클래식 앱") : L("연결됨")) }
-        return L("알 수 없는 앱 · 실제 아이콘 유지")
+        switch item.kind {
+        case .folder: return L("폴더 · 이름을 정해 주세요 (이모지 이름은 읽을 수 없음)")
+        case .widget(let kind, let size): return LF("%@ 위젯", kind.displayName) + " · " + size.label
+        case .app(let id?): return store.name(for: id) + " · " + (id.builtin != nil ? L("클래식 앱") : L("연결됨"))
+        case .app(nil): return L("알 수 없는 앱 · 실제 아이콘 유지")
+        }
     }
 
     @ViewBuilder
     private func itemIcon(_ item: Item) -> some View {
-        if item.isFolder {
-            FolderTile(apps: [], size: 36)
+        if case .widget(let kind, _) = item.kind {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(LinearGradient(colors: [Color(hex: 0x6E9BEA), Color(hex: 0x2558C4)], startPoint: .top, endPoint: .bottom))
+                .frame(width: 36, height: 36)
+                .overlay(Image(systemName: kind == .weather ? "cloud.sun.fill" : kind == .battery ? "battery.75percent"
+                               : kind == .calendar ? "calendar" : "square.grid.2x2.fill").foregroundStyle(.white))
+        } else if item.isFolder {
+            ZStack {
+                FolderTile(apps: [], size: 36)
+                if let crop = item.crop { Image(uiImage: crop).resizable().scaledToFill().frame(width: 32, height: 32).clipShape(RoundedRectangle(cornerRadius: 6)) }
+            }
         } else if let id = item.match, !keepRealIcons || item.crop == nil {
             RetroIconView(art: store.art(for: id), size: 36)
         } else {
@@ -190,61 +212,98 @@ struct HomeImportView: View {
     private func analyze(_ items: [PhotosPickerItem]) async {
         analyzing = true
         defer { analyzing = false }
-        var newPages: [Page] = []
-        var strip: UIImage?
-        for (i, pickerItem) in items.enumerated() {
-            guard let data = try? await pickerItem.loadTransferable(type: Data.self),
-                  let image = UIImage(data: data)?.normalizedOrientation(),
-                  let labels = try? await ScreenshotLayoutImporter.recognizeLabels(in: image) else { continue }
-            let size = CGSize(width: image.cgImage?.width ?? 0, height: image.cgImage?.height ?? 0)
-            let pageItems = ScreenshotLayoutImporter.appLabels(labels).map { label -> Item in
-                let crop = ScreenshotLayoutImporter.crop(image, to: ScreenshotLayoutImporter.iconRect(above: label, imageSize: size))
-                let folder = ScreenshotLayoutImporter.isLikelyFolder(label.text)
-                return Item(label: label.text, match: folder ? nil : ScreenshotLayoutImporter.match(label.text),
-                            isFolder: folder, crop: crop)
-            }
-            newPages.append(Page(items: pageItems))
-            if i == 0 { strip = ScreenshotLayoutImporter.crop(image, to: ScreenshotLayoutImporter.dockStripRect(imageSize: size)) }
+        var images: [UIImage] = []
+        for item in items {
+            if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) { images.append(image) }
         }
-        if newPages.allSatisfy({ $0.items.isEmpty }) { failed = true; return }
+        let result = await Self.buildPages(from: images)
+        if result.pages.allSatisfy({ $0.items.isEmpty }) { failed = true; return }
         // Start from the current RetroPhone dock; the user adjusts it to match the screenshot.
         var slots = (0..<HomeLayout.dockCapacity).map { _ in DockSlot(app: nil) }
         for (i, app) in store.layout.dock.prefix(slots.count).enumerated() { slots[i].app = app }
-        pages = newPages
+        pages = result.pages
         dock = slots
-        dockStrip = strip
+        dockStrip = result.dockStrip
         Haptics.success()
     }
 
-    // MARK: Apply
-
     private func apply() {
-        var layout = store.layout
+        store.layout = Self.makeLayout(base: store.layout, pages: pages, dockApps: dock.compactMap(\.app),
+                                       keepRealIcons: keepRealIcons, installed: addInstalled ? installed : [],
+                                       keepWidgets: keepWidgets)
+        store.flush()
+        router.currentPage = 0
+        Haptics.success()
+        onFinished?()
+        dismiss()
+    }
+}
+
+// MARK: - Import pipeline (UI-independent, also used by the DEBUG `-importScreenshot` launch option)
+
+extension HomeImportView {
+    static func buildPages(from images: [UIImage]) async -> (pages: [Page], dockStrip: UIImage?) {
+        var pages: [Page] = []
+        var strip: UIImage?
+        for (i, raw) in images.enumerated() {
+            let image = raw.normalizedOrientation()
+            guard let labels = try? await ScreenshotLayoutImporter.recognizeLabels(in: image) else { continue }
+            let size = CGSize(width: image.cgImage?.width ?? 0, height: image.cgImage?.height ?? 0)
+            let analysis = ScreenshotLayoutImporter.analyzeHome(labels, aspect: size.width / max(size.height, 1))
+            var folderNumber = 0
+            let items = analysis.entries.compactMap { entry -> Item? in
+                let crop = ScreenshotLayoutImporter.crop(image, to: ScreenshotLayoutImporter.cellIconRect(
+                    analysis.grid, row: entry.row, col: entry.col, imageSize: size))
+                switch entry.kind {
+                case .widget(let kind?, let wsize, _):
+                    let fitted = kind.supportedSizes.contains(wsize) ? wsize : kind.supportedSizes[0]
+                    return Item(kind: .widget(kind, fitted), label: kind.displayName, crop: nil)
+                case .widget(nil, _, _):
+                    return nil   // a widget RetroPhone doesn't have
+                case .app(let text, let match):
+                    if ScreenshotLayoutImporter.isLikelyFolder(text) { return Item(kind: .folder, label: text, crop: crop) }
+                    return Item(kind: .app(match), label: text, crop: crop)
+                case .unlabeled:
+                    // Filled cell with an unreadable label (e.g. emoji folder names) — or empty wallpaper.
+                    let busy = crop.map(ScreenshotLayoutImporter.busyness) ?? 0
+                    folderNumber += 1
+                    return Item(kind: .folder, label: LF("폴더 %d", folderNumber), crop: crop, include: busy > 0.3)
+                }
+            }
+            pages.append(Page(items: items))
+            if i == 0 { strip = ScreenshotLayoutImporter.crop(image, to: ScreenshotLayoutImporter.dockStripRect(imageSize: size)) }
+        }
+        return (pages, strip)
+    }
+
+    static func makeLayout(base: HomeLayout, pages: [Page], dockApps: [AppID], keepRealIcons: Bool,
+                           installed: [ExternalApp], keepWidgets: Bool) -> HomeLayout {
+        var layout = base
         var customApps = layout.customApps
         var overrides = layout.overrides
         var newPages: [[HomeItem]] = []
-        var placed = Set<AppID>()
-
-        let dockApps = dock.compactMap(\.app)
-        placed.formUnion(dockApps)
+        var placed = Set(dockApps)
 
         for page in pages {
             var items: [HomeItem] = []
             for item in page.items where item.include {
-                if item.isFolder {
-                    items.append(HomeItem(.folder(Folder(name: item.label, apps: []))))
-                    continue
-                }
-                if let id = item.match {
-                    guard !placed.contains(id) else { continue }
-                    placed.insert(id)
-                    items.append(.app(id))
+                switch item.kind {
+                case .widget(let kind, let size):
+                    items.append(.widget(kind, size))
+                case .folder:
+                    let cover = item.crop.flatMap { FileStore.saveImage($0, maxDimension: 240) }
+                    let name = item.label.trimmingCharacters(in: .whitespaces)
+                    items.append(HomeItem(.folder(Folder(name: name.isEmpty ? L("폴더") : name, apps: [], cover: cover))))
+                case .app(let match?):
+                    guard !placed.contains(match) else { continue }
+                    placed.insert(match)
+                    items.append(.app(match))
                     if keepRealIcons, let crop = item.crop, let file = FileStore.saveImage(crop, maxDimension: 240) {
-                        var o = overrides[id.raw] ?? AppOverride()
+                        var o = overrides[match.raw] ?? AppOverride()
                         o.customIconFile = file
-                        overrides[id.raw] = o
+                        overrides[match.raw] = o
                     }
-                } else {
+                case .app(nil):
                     // Unknown app: keep its real icon and name; the user can set a launch address later.
                     let id = AppID("custom.\(UUID().uuidString)")
                     customApps.append(ExternalApp(id: id, nameKo: item.label, nameEn: item.label, scheme: nil, webURL: nil,
@@ -260,20 +319,15 @@ struct HomeImportView: View {
         }
 
         // Installed apps that weren't in the screenshots.
-        var extra: [HomeItem] = []
-        if addInstalled {
-            extra += installed.filter { !placed.contains($0.id) }.map { HomeItem.app($0.id) }
-            installed.forEach { placed.insert($0.id) }
-        }
+        var extra: [HomeItem] = installed.filter { !placed.contains($0.id) }.map { HomeItem.app($0.id) }
+        installed.forEach { placed.insert($0.id) }
         // Keep every classic app reachable (Settings in particular) in a folder.
         let leftovers = BuiltinApp.allCases.map(\.appID).filter { !placed.contains($0) }
-        if !leftovers.isEmpty {
-            extra.append(HomeItem(.folder(Folder(name: L("클래식 앱"), apps: leftovers))))
-        }
+        if !leftovers.isEmpty { extra.append(HomeItem(.folder(Folder(name: L("클래식 앱"), apps: leftovers)))) }
         if !extra.isEmpty { newPages.append(extra) }
-        if keepWidgets {
-            newPages.append([.widget(.weather, .wide), .widget(.calendar, .small), .widget(.battery, .small),
-                             .widget(.music, .wide)])
+        let importedWidgets = newPages.flatMap { $0 }.contains { $0.widget != nil }
+        if keepWidgets && !importedWidgets {
+            newPages.append([.widget(.weather, .wide), .widget(.calendar, .small), .widget(.battery, .small), .widget(.music, .wide)])
         }
 
         layout.pages = newPages.isEmpty ? [[]] : newPages
@@ -281,12 +335,7 @@ struct HomeImportView: View {
         layout.customApps = customApps
         layout.overrides = overrides
         layout.normalize()
-        store.layout = layout
-        store.flush()
-        router.currentPage = 0
-        Haptics.success()
-        onFinished?()
-        dismiss()
+        return layout
     }
 }
 

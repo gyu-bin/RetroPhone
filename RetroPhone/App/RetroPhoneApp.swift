@@ -65,6 +65,19 @@ enum LaunchOptions {
         if let i = args.firstIndex(of: "-language"), i + 1 < args.count, let lang = AppLanguage(rawValue: args[i + 1]) {
             SettingsStore.shared.value.language = lang
         }
+        #if DEBUG
+        // Developer/screenshot aid: build the home screen from a screenshot file without the photo picker.
+        if let i = args.firstIndex(of: "-importScreenshot"), i + 1 < args.count, let image = UIImage(contentsOfFile: args[i + 1]) {
+            SettingsStore.shared.value.homeImportOffered = true
+            Task { @MainActor in
+                let result = await HomeImportView.buildPages(from: [image])
+                LayoutStore.shared.layout = HomeImportView.makeLayout(
+                    base: LayoutStore.shared.layout, pages: result.pages,
+                    dockApps: [BuiltinApp.phone.appID, BuiltinApp.messages.appID, BuiltinApp.browser.appID, BuiltinApp.settings.appID],
+                    keepRealIcons: false, installed: [], keepWidgets: false)
+            }
+        }
+        #endif
     }
 }
 

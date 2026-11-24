@@ -9,12 +9,21 @@ struct BatteryWidget: View {
     var body: some View {
         let battery = BatteryMonitor.shared
         ZStack {
-            LinearGradient(colors: [Color(hex: 0x4A4E55), Color(hex: 0x16181C)], startPoint: .top, endPoint: .bottom)
-            WidgetGloss(strength: 0.18)
+            LinearGradient(colors: [Color(hex: 0x2A2C30), Color(hex: 0x0E0F11)], startPoint: .top, endPoint: .bottom)
+            WidgetGloss(strength: 0.12)
             if size == .small {
-                VStack(spacing: 6) {
-                    BatteryGauge(level: battery.level, charging: battery.isCharging, diameter: min(frame.width, frame.height) * 0.62)
-                    EmbossedText(text: "iPhone", size: 12)
+                // Like the iOS battery widget: up to four device rings. Only the iPhone has real data —
+                // other devices (Watch, AirPods) aren't exposed to apps, so their rings stay empty.
+                let d = min(frame.width, frame.height) * 0.4
+                VStack(spacing: d * 0.18) {
+                    HStack(spacing: d * 0.18) {
+                        BatteryRing(level: battery.level, charging: battery.isCharging, symbol: "iphone", diameter: d)
+                        BatteryRing(level: nil, charging: false, symbol: nil, diameter: d)
+                    }
+                    HStack(spacing: d * 0.18) {
+                        BatteryRing(level: nil, charging: false, symbol: nil, diameter: d)
+                        BatteryRing(level: nil, charging: false, symbol: nil, diameter: d)
+                    }
                 }
             } else {
                 HStack(spacing: 16) {
@@ -74,5 +83,35 @@ struct BatteryGauge: View {
         .frame(width: diameter, height: diameter)
         .accessibilityElement()
         .accessibilityLabel(level.map { LF("배터리 %d퍼센트", Int(($0 * 100).rounded())) } ?? L("배터리 정보 없음"))
+    }
+}
+
+/// One ring of the battery widget (device glyph in the middle).
+struct BatteryRing: View {
+    var level: Double?
+    var charging: Bool
+    var symbol: String?
+    var diameter: CGFloat
+
+    var body: some View {
+        let lv = level ?? 0
+        let color: Color = lv > 0.5 || charging ? Color(hex: 0x34C759) : lv > 0.2 ? Color(hex: 0xFFCC00) : Color(hex: 0xFF3B30)
+        ZStack {
+            Circle().stroke(Color.white.opacity(0.13), lineWidth: diameter * 0.11)
+            if level != nil {
+                Circle().trim(from: 0, to: max(0.02, lv))
+                    .stroke(color, style: StrokeStyle(lineWidth: diameter * 0.11, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .shadow(color: color.opacity(0.6), radius: 2)
+            }
+            if let symbol {
+                Image(systemName: charging ? "bolt.fill" : symbol)
+                    .font(.system(size: diameter * 0.34, weight: .medium))
+                    .foregroundStyle(.white)
+            }
+        }
+        .frame(width: diameter, height: diameter)
+        .accessibilityElement()
+        .accessibilityLabel(level.map { LF("배터리 %d퍼센트", Int(($0 * 100).rounded())) } ?? L("기기 없음"))
     }
 }

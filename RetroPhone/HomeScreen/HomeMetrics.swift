@@ -6,10 +6,12 @@ struct HomeMetrics {
     let insets: EdgeInsets
 
     var k: CGFloat { min(size.width / 320, 1.35) }
-    var iconSize: CGFloat { min(57 * k, 74) }
+    /// Icon size before fitting to the row height (used for the dock, which doesn't depend on rows).
+    var baseIconSize: CGFloat { min(57 * k, 74) }
+    var iconSize: CGFloat { min(baseIconSize, rowHeight * 0.7) }
     var cellWidth: CGFloat { size.width / CGFloat(HomeLayout.columns) }
     var gridTop: CGFloat { max(insets.top, 20) + 10 }
-    var dockHeight: CGFloat { iconSize + 34 * k }
+    var dockHeight: CGFloat { baseIconSize + 34 * k }
     var dockTop: CGFloat { size.height - max(insets.bottom, 8) - dockHeight }
     var dotsHeight: CGFloat { 22 }
     var gridHeight: CGFloat { max(200, dockTop - dotsHeight - gridTop) }

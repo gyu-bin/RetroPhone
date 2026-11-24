@@ -4,3 +4,6 @@ DerivedData/
 *.xcuserstate
 xcuserdata/
 .claude/settings.local.json
+
+# Personal screenshots used only for local importer tests (never commit)
+RetroPhoneTests/Fixtures/private/
