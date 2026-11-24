@@ -15,6 +15,9 @@ nonisolated final class CaptureEngine: @unchecked Sendable {
     let livePreview = LiveFilterPreview()
     private let videoOutput = AVCaptureVideoDataOutput()
     private let videoQueue = DispatchQueue(label: "RetroPhone.camera.frames", qos: .userInitiated)
+    private let movieOutput = AVCaptureMovieFileOutput()
+    private var audioInput: AVCaptureDeviceInput?
+    private var movieDelegate: MovieRecordingDelegate?
 
     /// Attaches the camera with `deviceID` (replacing any current camera). Calls back on the
     /// session queue with success.
@@ -50,6 +53,55 @@ nonisolated final class CaptureEngine: @unchecked Sendable {
             session.addOutput(videoOutput)
         }
         return true
+    }
+
+    /// Switches the session between photo and video capture. Video adds the movie output and, when
+    /// the microphone is allowed, the audio input. Calls back on the session queue with success.
+    func setVideoMode(_ video: Bool, completion: @escaping @Sendable (Bool) -> Void) {
+        queue.async {
+            self.session.beginConfiguration()
+            if video {
+                if self.session.canSetSessionPreset(.high) { self.session.sessionPreset = .high }
+                if self.audioInput == nil, AVCaptureDevice.authorizationStatus(for: .audio) == .authorized,
+                   let mic = AVCaptureDevice.default(for: .audio), let input = try? AVCaptureDeviceInput(device: mic),
+                   self.session.canAddInput(input) {
+                    self.session.addInput(input)
+                    self.audioInput = input
+                }
+                if !self.session.outputs.contains(self.movieOutput), self.session.canAddOutput(self.movieOutput) {
+                    self.session.addOutput(self.movieOutput)
+                }
+            } else {
+                if self.session.outputs.contains(self.movieOutput) { self.session.removeOutput(self.movieOutput) }
+                if let audio = self.audioInput { self.session.removeInput(audio); self.audioInput = nil }
+                if self.session.canSetSessionPreset(.photo) { self.session.sessionPreset = .photo }
+            }
+            self.session.commitConfiguration()
+            completion(!video || self.session.outputs.contains(self.movieOutput))
+        }
+    }
+
+    /// Starts recording a movie; `completion` gets the finished file (or nil on failure).
+    func startRecording(rotationAngle: CGFloat, completion: @escaping @Sendable (URL?) -> Void) {
+        queue.async {
+            guard self.session.isRunning, !self.movieOutput.isRecording,
+                  let connection = self.movieOutput.connection(with: .video) else {
+                completion(nil)
+                return
+            }
+            if connection.isVideoRotationAngleSupported(rotationAngle) { connection.videoRotationAngle = rotationAngle }
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mov")
+            let delegate = MovieRecordingDelegate { url in
+                completion(url)
+                self.queue.async { self.movieDelegate = nil }
+            }
+            self.movieDelegate = delegate
+            self.movieOutput.startRecording(to: url, recordingDelegate: delegate)
+        }
+    }
+
+    func stopRecording() {
+        queue.async { if self.movieOutput.isRecording { self.movieOutput.stopRecording() } }
     }
 
     /// Matches the filtered frames to the on-screen preview (rotation, front-camera mirroring).
@@ -156,6 +208,19 @@ nonisolated final class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDel
 
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?) {
         completion(data)
+    }
+}
+
+/// Movie recording callbacks arrive on an AVFoundation queue; only the file URL is passed on.
+nonisolated final class MovieRecordingDelegate: NSObject, AVCaptureFileOutputRecordingDelegate, @unchecked Sendable {
+    private let completion: @Sendable (URL?) -> Void
+    init(completion: @escaping @Sendable (URL?) -> Void) { self.completion = completion }
+
+    func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL,
+                    from connections: [AVCaptureConnection], error: Error?) {
+        // A recording that stopped for a limit (disk, duration) still produced a usable file.
+        let finished = (error as NSError?)?.userInfo[AVErrorRecordingSuccessfullyFinishedKey] as? Bool ?? (error == nil)
+        completion(finished && FileManager.default.fileExists(atPath: outputFileURL.path) ? outputFileURL : nil)
     }
 }
 

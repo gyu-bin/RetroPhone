@@ -109,6 +109,9 @@ struct StyleSettingsView: View {
         let newDefault = WallpaperChoice.builtin(era.defaultWallpaper)
         if value.homeWallpaper == oldDefault { value.homeWallpaper = newDefault }
         if value.lockWallpaper == oldDefault { value.lockWallpaper = newDefault }
+        // The camera look follows the era too, unless the user picked a different one.
+        let look = CameraLook.stored
+        if look == .original || look == CameraLook.eraDefault(value.themeEra) { CameraLook.stored = CameraLook.eraDefault(era) }
         value.themeEra = era
         Haptics.selection()
         withAnimation(.easeInOut(duration: 0.3)) { SettingsStore.shared.value = value }

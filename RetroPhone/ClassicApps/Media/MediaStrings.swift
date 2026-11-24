@@ -21,7 +21,8 @@ extension EnglishTable {
         "사진을 불러오지 못했습니다.": "The photo couldn't be loaded.",
 
         // Camera
-        "원본": "Original", "필터": "Filter", "플래시": "Flash", "카메라 전환": "Switch Camera",
+        "원본": "Original", "필터": "Filter", "비디오": "Video", "녹화 시작": "Start Recording", "녹화 중지": "Stop Recording",
+        "녹화 중": "Recording", "사진 / 비디오": "Photo / Video", "플래시": "Flash", "카메라 전환": "Switch Camera",
         "사진 찍기": "Take Photo",
         "카메라를 사용할 수 없음": "Camera Unavailable",
         "이 기기에서는 카메라를 사용할 수 없습니다.": "No camera is available on this device.",

@@ -43,6 +43,30 @@ enum CameraLook: String, CaseIterable, Identifiable {
         case .iPhone5: .iPhone5
         }
     }
+
+    static let storageKey = "retro.camera.look"
+
+    /// The camera that matches the era: iPhone 4 for iOS 4, the iPhone 5 sensor look for the 5s.
+    static func eraDefault(_ era: ThemeEra) -> CameraLook { era == .ios7 ? .iPhone5 : .iPhone4 }
+
+    static var stored: CameraLook {
+        get { UserDefaults.standard.string(forKey: storageKey).flatMap(CameraLook.init(rawValue:)) ?? .iPhone4 }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: storageKey) }
+    }
+
+    /// One-time switch to the old-phone look (earlier builds defaulted to the plain "original").
+    static func migrateDefaultOnce() {
+        let flag = "retro.camera.lookDefaultApplied"
+        guard !UserDefaults.standard.bool(forKey: flag) else { return }
+        UserDefaults.standard.set(true, forKey: flag)
+        stored = eraDefault(SettingsStore.shared.value.themeEra)
+    }
+}
+
+enum CaptureMode: String, CaseIterable, Identifiable {
+    case video, photo
+    var id: String { rawValue }
+    var title: String { self == .video ? L("비디오") : L("사진") }
 }
 
 // MARK: - Model
@@ -61,6 +85,11 @@ final class CameraModel {
     var irisOpenness: CGFloat = 0
     var saveFailed = false
     var focusPoint: CGPoint?
+    private(set) var mode: CaptureMode = .photo
+    private(set) var isRecording = false
+    private(set) var recordingStarted: Date?
+    /// Applying the look to a finished movie and saving it.
+    private(set) var processingVideo = false
 
     @ObservationIgnored let engine = CaptureEngine()
     @ObservationIgnored weak var previewLayer: AVCaptureVideoPreviewLayer?
@@ -103,6 +132,7 @@ final class CameraModel {
     }
 
     func stop() {
+        if isRecording { engine.stopRecording() }
         engine.stop()
         irisOpenness = 0
         if phase == .running || phase == .configuring { phase = .idle }
@@ -162,6 +192,56 @@ final class CameraModel {
         withAnimation(.easeIn(duration: 0.18)) { irisOpenness = 0 }
         position = position == .back ? .front : .back
         configure()
+    }
+
+    func setMode(_ newMode: CaptureMode) async {
+        guard newMode != mode, !isRecording, !processingVideo else { return }
+        Haptics.selection()
+        if newMode == .video, AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
+            _ = await AVCaptureDevice.requestAccess(for: .audio)   // asked on first video use
+        }
+        withAnimation(.easeOut(duration: 0.2)) { mode = newMode }
+        #if DEBUG
+        if demoImage != nil { return }
+        #endif
+        engine.setVideoMode(newMode == .video) { _ in }
+    }
+
+    /// Starts or stops a recording. The finished movie gets the selected look, then goes to Photos.
+    func toggleRecording(look: CameraLook) {
+        if isRecording {
+            Haptics.tap(.medium)
+            #if DEBUG
+            if demoImage != nil { isRecording = false; recordingStarted = nil; return }
+            #endif
+            engine.stopRecording()
+            return
+        }
+        guard phase == .running, !processingVideo else { return }
+        #if DEBUG
+        if demoImage != nil { isRecording = true; recordingStarted = Date(); return }
+        #endif
+        Haptics.tap(.medium)
+        isRecording = true
+        recordingStarted = Date()
+        let angle = rotationCoordinator?.videoRotationAngleForHorizonLevelCapture ?? 90
+        let preset = look.preset
+        engine.startRecording(rotationAngle: angle) { [weak self] url in
+            Task { @MainActor in await self?.recordingFinished(url, preset: preset) }
+        }
+    }
+
+    private func recordingFinished(_ url: URL?, preset: RetroFilterPreset?) async {
+        isRecording = false
+        recordingStarted = nil
+        guard var url else { saveFailed = true; return }
+        processingVideo = true
+        defer { processingVideo = false }
+        if let preset, let filtered = await RetroVideoProcessor.process(url, preset: preset) { url = filtered }
+        if let thumb = await RetroVideoProcessor.thumbnail(url) {
+            withAnimation(.easeOut(duration: 0.3)) { lastThumbnail = UIImage(cgImage: thumb) }
+        }
+        do { try await PhotoLibraryService.shared.saveVideo(url) } catch { saveFailed = true }
     }
 
     func focus(atLayerPoint point: CGPoint) {
@@ -245,6 +325,7 @@ final class CameraModel {
 
 struct CameraAppView: View {
     @Environment(AppRouter.self) private var router
+    @Environment(\.retroTheme) private var theme
     @State private var model = CameraModel()
     /// Defaults to the iPhone 4 look so photos feel like the old phone from the first shot.
     @AppStorage("retro.camera.look") private var look: CameraLook = .iPhone4
@@ -267,7 +348,7 @@ struct CameraAppView: View {
                                     message: L("다른 앱이 카메라를 사용 중일 수 있습니다."),
                                     requestTitle: L("다시 시도"), request: { Task { await model.start() } })
             default:
-                cameraUI
+                if theme.isFlat { flatCameraUI } else { cameraUI }
             }
         }
         .retroStatusBarHidden()
@@ -322,6 +403,131 @@ struct CameraAppView: View {
         }
     }
 
+    private func shutter() {
+        if model.mode == .video { model.toggleRecording(look: look) }
+        else { model.capture(look: look, flash: flash) }
+    }
+
+    // MARK: iOS 7 camera
+
+    /// iOS 7 camera: black bars, mode names (비디오 · 사진) above a round white shutter, filter
+    /// button bottom right, yellow highlights.
+    private var flatCameraUI: some View {
+        VStack(spacing: 0) {
+            HStack {
+                if model.hasFlash {
+                    FlatFlashControl(mode: $flash, expanded: $flashExpanded)
+                }
+                Spacer()
+                if let start = model.recordingStarted { RecordingTimer(start: start) }
+                Spacer()
+                if model.canSwitch && !flashExpanded {
+                    Button { model.switchCamera() } label: {
+                        Image(systemName: "arrow.triangle.2.circlepath.camera")
+                            .font(.system(size: 20, weight: .regular)).foregroundStyle(.white)
+                            .frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(PressDimStyle())
+                    .accessibilityLabel(L("카메라 전환"))
+                }
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 50)
+            .background(Color.black)
+
+            ZStack {
+                CameraPreview(session: model.engine.session, live: model.engine.livePreview,
+                              filtered: look.preset != nil, demoImage: demoFrame) { model.previewLayer = $0 }
+                    .onTapGesture(coordinateSpace: .local) { location in
+                        if flashExpanded || lookExpanded {
+                            withAnimation(.easeOut(duration: 0.2)) { flashExpanded = false; lookExpanded = false }
+                        } else {
+                            model.focus(atLayerPoint: location)
+                        }
+                    }
+                if let point = model.focusPoint {
+                    Rectangle().stroke(Color(hex: 0xFFCC00), lineWidth: 1.5)
+                        .frame(width: 76, height: 76)
+                        .position(point)
+                        .allowsHitTesting(false)
+                        .transition(.scale(scale: 1.4).combined(with: .opacity))
+                        .id("\(point.x)-\(point.y)")
+                }
+                // iOS 7 has no iris: the preview just blinks dark on capture.
+                Color.black.opacity(1 - model.irisOpenness).allowsHitTesting(false)
+            }
+            .aspectRatio(3.0 / 4.0, contentMode: .fit)
+            .clipped()
+            .layoutPriority(1)
+
+            VStack(spacing: 16) {
+                Spacer(minLength: 0)
+                if lookExpanded {
+                    HStack(spacing: 18) {
+                        ForEach(CameraLook.allCases) { option in
+                            Button {
+                                Haptics.selection()
+                                look = option
+                                withAnimation(.easeOut(duration: 0.2)) { lookExpanded = false }
+                            } label: {
+                                Text(option.title).font(.neue(14, option == look ? .medium : .regular))
+                                    .foregroundStyle(option == look ? Color(hex: 0xFFCC00) : .white)
+                                    .fixedSize()
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .transition(.opacity)
+                }
+                HStack(spacing: 26) {
+                    ForEach(CaptureMode.allCases) { m in
+                        Button { Task { await model.setMode(m) } } label: {
+                            Text(m.title).font(.neue(15, .medium))
+                                .foregroundStyle(m == model.mode ? Color(hex: 0xFFCC00) : .white)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(model.isRecording || model.processingVideo)
+                    }
+                }
+                HStack {
+                    Button {
+                        router.open(.photos)
+                    } label: {
+                        ZStack {
+                            Color(hex: 0x1C1C1E)
+                            if let thumb = model.lastThumbnail { Image(uiImage: thumb).resizable().scaledToFill() }
+                        }
+                        .frame(width: 44, height: 44)
+                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                    }
+                    .buttonStyle(PressDimStyle())
+                    .accessibilityLabel(L("카메라 롤"))
+                    Spacer()
+                    FlatShutterButton(enabled: model.phase == .running && !model.isBusy && !model.processingVideo,
+                                      video: model.mode == .video, recording: model.isRecording) {
+                        flashExpanded = false
+                        lookExpanded = false
+                        shutter()
+                    }
+                    Spacer()
+                    Button {
+                        Haptics.selection()
+                        withAnimation(.easeOut(duration: 0.2)) { lookExpanded.toggle() }
+                    } label: {
+                        FilterGlyph(active: look.preset != nil).frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(PressDimStyle())
+                    .accessibilityLabel(L("필터"))
+                    .accessibilityValue(look.title)
+                }
+                .padding(.horizontal, 24)
+                Spacer(minLength: 0)
+            }
+            .frame(minHeight: 150, maxHeight: .infinity)
+            .background(Color.black)
+        }
+    }
+
     /// Demo still, run through the same live filter as camera frames.
     private var demoFrame: CGImage? {
         #if DEBUG
@@ -337,7 +543,12 @@ struct CameraAppView: View {
     /// middle where the HDR button was. An expanded pill hides the others.
     private var topControls: some View {
         ZStack(alignment: .top) {
-            if !flashExpanded {
+            if let start = model.recordingStarted {
+                RecordingTimer(start: start)
+                    .padding(.horizontal, 12).frame(height: 34)
+                    .background(CameraGlassBackground())
+                    .frame(maxWidth: .infinity)
+            } else if !flashExpanded {
                 CameraOptionPill(icon: nil, options: CameraLook.allCases.map { ($0, $0.title) },
                                  selection: $look, expanded: $lookExpanded, label: L("필터"))
                     .frame(maxWidth: .infinity)
@@ -398,13 +609,16 @@ struct CameraAppView: View {
                 .buttonStyle(PressDimStyle())
                 .accessibilityLabel(L("카메라 롤"))
                 Spacer()
-                ShutterButton(enabled: model.phase == .running && !model.isBusy) {
+                ShutterButton(enabled: model.phase == .running && !model.isBusy && !model.processingVideo,
+                              video: model.mode == .video, recording: model.isRecording) {
                     flashExpanded = false
                     lookExpanded = false
-                    model.capture(look: look, flash: flash)
+                    shutter()
                 }
                 Spacer()
-                Color.clear.frame(width: 48, height: 48)
+                ClassicModeSwitch(mode: model.mode) { new in Task { await model.setMode(new) } }
+                    .frame(width: 48, height: 48)
+                    .disabled(model.isRecording || model.processingVideo)
             }
             .padding(.horizontal, 16)
         }
@@ -488,6 +702,8 @@ struct CameraOptionPill<Option: Hashable>: View {
 /// Big silver pill with a camera glyph.
 struct ShutterButton: View {
     var enabled: Bool
+    var video: Bool = false
+    var recording: Bool = false
     var action: () -> Void
 
     var body: some View {
@@ -502,10 +718,18 @@ struct ShutterButton: View {
                     .fill(LinearGradient(colors: [Color(hex: 0xE4E4E4), Color(hex: 0xB0B0B0)], startPoint: .top, endPoint: .bottom))
                     .padding(6)
                     .overlay(Capsule().stroke(Color.black.opacity(0.25), lineWidth: 1).padding(6))
-                Image(systemName: "camera.fill")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(Color(hex: 0x3A3A3A))
-                    .shadow(color: .white.opacity(0.8), radius: 0, y: 1)
+                if video {
+                    // iOS 4 record button: red dot, a red square while recording.
+                    RoundedRectangle(cornerRadius: recording ? 3 : 9, style: .continuous)
+                        .fill(LinearGradient(colors: [Color(hex: 0xFF6A5C), Color(hex: 0xC8160B)], startPoint: .top, endPoint: .bottom))
+                        .frame(width: 18, height: 18)
+                        .overlay(RoundedRectangle(cornerRadius: recording ? 3 : 9).stroke(Color.black.opacity(0.35), lineWidth: 1))
+                } else {
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(Color(hex: 0x3A3A3A))
+                        .shadow(color: .white.opacity(0.8), radius: 0, y: 1)
+                }
             }
             .frame(width: 124, height: 58)
             .shadow(color: .black.opacity(0.7), radius: 2, y: 1)
@@ -513,7 +737,126 @@ struct ShutterButton: View {
         }
         .buttonStyle(PressDimStyle())
         .disabled(!enabled)
-        .accessibilityLabel(L("사진 찍기"))
+        .accessibilityLabel(video ? (recording ? L("녹화 중지") : L("녹화 시작")) : L("사진 찍기"))
+    }
+}
+
+/// iOS 7 shutter: white ring around a white disc (photo) or a red disc / red square (video).
+struct FlatShutterButton: View {
+    var enabled: Bool
+    var video: Bool
+    var recording: Bool
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Circle().stroke(Color.white, lineWidth: 4).frame(width: 66, height: 66)
+                if video {
+                    RoundedRectangle(cornerRadius: recording ? 5 : 27, style: .continuous)
+                        .fill(Color(hex: 0xFF3B30))
+                        .frame(width: recording ? 26 : 54, height: recording ? 26 : 54)
+                } else {
+                    Circle().fill(Color.white).frame(width: 54, height: 54)
+                }
+            }
+            .frame(width: 70, height: 70)
+            .opacity(enabled ? 1 : 0.5)
+            .animation(.easeInOut(duration: 0.2), value: recording)
+        }
+        .buttonStyle(PressDimStyle())
+        .disabled(!enabled)
+        .accessibilityLabel(video ? (recording ? L("녹화 중지") : L("녹화 시작")) : L("사진 찍기"))
+    }
+}
+
+/// iOS 7 filter button: three overlapping circles, coloured while a look is on.
+struct FilterGlyph: View {
+    var active: Bool
+    var body: some View {
+        let colors: [Color] = active ? [Color(hex: 0xFF3B30), Color(hex: 0x4CD964), Color(hex: 0x007AFF)] : [.white, .white, .white]
+        ZStack {
+            Circle().stroke(colors[0], lineWidth: 1.5).frame(width: 15, height: 15).offset(x: -5, y: -3)
+            Circle().stroke(colors[1], lineWidth: 1.5).frame(width: 15, height: 15).offset(x: 5, y: -3)
+            Circle().stroke(colors[2], lineWidth: 1.5).frame(width: 15, height: 15).offset(y: 5)
+        }
+    }
+}
+
+/// iOS 7 flash: ⚡ + current mode; tapped, the choices spread out in the top bar.
+struct FlatFlashControl: View {
+    @Binding var mode: CameraFlashMode
+    @Binding var expanded: Bool
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: mode == .off ? "bolt.slash.fill" : "bolt.fill")
+                .font(.system(size: 16)).foregroundStyle(mode == .on ? Color(hex: 0xFFCC00) : .white)
+            if expanded {
+                ForEach(CameraFlashMode.allCases) { option in
+                    Button {
+                        Haptics.selection()
+                        mode = option
+                        withAnimation(.easeOut(duration: 0.2)) { expanded = false }
+                    } label: {
+                        Text(option.title).font(.neue(14, .medium))
+                            .foregroundStyle(option == mode ? Color(hex: 0xFFCC00) : .white)
+                    }
+                    .buttonStyle(.plain)
+                }
+            } else {
+                Text(mode.title).font(.neue(14, .medium)).foregroundStyle(.white)
+            }
+        }
+        .frame(height: 44)
+        .contentShape(Rectangle())
+        .onTapGesture { if !expanded { withAnimation(.easeOut(duration: 0.2)) { expanded = true } } }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(L("플래시"))
+        .accessibilityValue(mode.title)
+    }
+}
+
+/// iOS 4 photo/video switch: camera and video glyphs with a small slider between them.
+struct ClassicModeSwitch: View {
+    var mode: CaptureMode
+    var onChange: (CaptureMode) -> Void
+    var body: some View {
+        VStack(spacing: 3) {
+            HStack(spacing: 4) {
+                Image(systemName: "camera.fill").font(.system(size: 9))
+                Capsule().fill(Color.black.opacity(0.6))
+                    .overlay(alignment: mode == .photo ? .leading : .trailing) {
+                        Circle().fill(LinearGradient(colors: [.white, Color(hex: 0xBDBDBD)], startPoint: .top, endPoint: .bottom))
+                            .padding(1.5)
+                    }
+                    .frame(width: 26, height: 14)
+                Image(systemName: "video.fill").font(.system(size: 9))
+            }
+            .foregroundStyle(Color(hex: 0xBDBDBD))
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { onChange(mode == .photo ? .video : .photo) }
+        .accessibilityElement()
+        .accessibilityLabel(L("사진 / 비디오"))
+        .accessibilityValue(mode.title)
+        .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// Red dot + elapsed recording time (mm:ss), ticking every second.
+struct RecordingTimer: View {
+    var start: Date
+    var body: some View {
+        TimelineView(.periodic(from: start, by: 1)) { ctx in
+            let s = max(0, Int(ctx.date.timeIntervalSince(start)))
+            HStack(spacing: 6) {
+                Circle().fill(Color(hex: 0xFF3B30)).frame(width: 8, height: 8)
+                Text(String(format: "%02d:%02d", s / 60, s % 60))
+                    .font(.system(size: 15, weight: .medium).monospacedDigit())
+                    .foregroundStyle(.white)
+            }
+        }
+        .accessibilityLabel(L("녹화 중"))
     }
 }
 

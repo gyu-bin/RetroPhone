@@ -8,6 +8,7 @@ struct RetroPhoneApp: App {
 
     init() {
         LaunchOptions.applyTestOverrides()
+        CameraLook.migrateDefaultOnce()
         // Alarms/timer notifications must be presented while RetroPhone is in the foreground.
         ClockNotificationDelegate.shared.install()
         let settings = SettingsStore.shared.value

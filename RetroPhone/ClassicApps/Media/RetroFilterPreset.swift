@@ -1,3 +1,4 @@
+import AVFoundation
 import CoreGraphics
 import CoreImage
 import Foundation
@@ -199,6 +200,37 @@ nonisolated struct RetroFilterPreset: Equatable, Sendable {
             ])
             .cropped(to: extent)
         return grain.applyingFilter("CISoftLightBlendMode", parameters: [kCIInputBackgroundImageKey: image])
+    }
+}
+
+/// Applies a look to a recorded movie (frame by frame through Core Image) and exports a new file.
+nonisolated enum RetroVideoProcessor {
+    static func process(_ url: URL, preset: RetroFilterPreset) async -> URL? {
+        let asset = AVURLAsset(url: url)
+        guard let composition = try? await AVVideoComposition.videoComposition(with: asset, applyingCIFiltersWithHandler: { request in
+            let source = request.sourceImage
+            // The live-preview variant: no static grain over moving video.
+            let output = preset.apply(to: source, preview: true).cropped(to: source.extent)
+            request.finish(with: output, context: nil)
+        }) else { return nil }
+        guard let export = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else { return nil }
+        export.videoComposition = composition
+        let out = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mov")
+        do {
+            try await export.export(to: out, as: .mov)
+            try? FileManager.default.removeItem(at: url)
+            return out
+        } catch {
+            return nil
+        }
+    }
+
+    /// First frame of a movie, for the camera-roll thumbnail.
+    static func thumbnail(_ url: URL) async -> CGImage? {
+        let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
+        generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: 180, height: 180)
+        return try? await generator.image(at: .zero).image
     }
 }
 

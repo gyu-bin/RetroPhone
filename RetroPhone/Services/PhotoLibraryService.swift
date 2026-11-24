@@ -64,4 +64,14 @@ final class PhotoLibraryService {
             req.addResource(with: .photo, data: data, options: nil)
         }
     }
+
+    /// Saves a recorded movie file to the library (the file is moved into the library).
+    func saveVideo(_ url: URL) async throws {
+        try await PHPhotoLibrary.shared().performChanges {
+            let req = PHAssetCreationRequest.forAsset()
+            let options = PHAssetResourceCreationOptions()
+            options.shouldMoveFile = true
+            req.addResource(with: .video, fileURL: url, options: options)
+        }
+    }
 }
