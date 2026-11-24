@@ -1,0 +1,69 @@
+import Foundation
+
+// English strings for SpringBoard-level modules. App modules keep their own tables
+// (ClassicApps/*/…Strings.swift). Missing keys fall back to Korean; `scripts/check_l10n.py`
+// lists untranslated strings.
+extension EnglishTable {
+    static let lock: [String: String] = [
+        "밀어서 잠금 해제": "slide to unlock", "충전 중": "Charging", "충전 완료": "Charged",
+    ]
+
+    static let home: [String: String] = [
+        "홈 버튼": "Home Button", "한 번 누르면 홈 화면, 두 번 누르면 멀티태스킹": "Press once for Home, twice for multitasking",
+        "오프라인": "Offline", "배터리 %d퍼센트": "Battery %d percent", "페이지 %d/%d": "Page %d of %d",
+        "%@ 폴더, 앱 %d개": "%@ folder, %d apps", "폴더": "Folder", "폴더 이름": "Folder Name",
+        "소셜": "Social", "엔터테인먼트": "Entertainment", "내비게이션": "Navigation", "금융": "Finance",
+        "쇼핑": "Shopping", "생산성": "Productivity", "유틸리티": "Utilities",
+        "홈 화면에 추가": "Add to Home Screen", "앱": "Apps", "위젯": "Widgets", "직접 추가": "Custom",
+        "내장 앱": "Built-in Apps", "외부 앱": "Other Apps",
+        "공식 URL 스킴 또는 웹 링크로 해당 앱을 엽니다. 설치 여부는 실행 시 확인됩니다.": "Opens the app via its official URL scheme or web link. Installation is checked at launch.",
+        "모든 앱이 홈 화면에 있습니다": "All apps are on the Home Screen",
+        "공식 문서": "Documented", "비공식": "Unofficial", "웹 링크": "Web Link",
+        "새 바로가기": "New Shortcut", "이름": "Name", "앱 이름": "App Name", "주소": "URL",
+        "앱의 URL 스킴(예: myapp://) 또는 웹 주소를 입력하세요. 스킴이 동작하지 않으면 열리지 않을 수 있습니다.": "Enter the app's URL scheme (e.g. myapp://) or a web address. It may not open if the scheme doesn't work.",
+        "아이콘": "Icon", "올바른 실행 주소가 아닙니다": "Invalid Launch URL", "예: myapp:// 또는 https://example.com": "e.g. myapp:// or https://example.com",
+        "아이콘 편집": "Edit Icon", "사진으로 아이콘 만들기": "Icon from Photo", "사진 선택…": "Choose Photo…",
+        "사진 아이콘 제거": "Remove Photo Icon", "클래식 아이콘": "Classic Icons", "기본값으로 되돌리기": "Reset to Default",
+        "크기": "Size", "위젯 제거": "Remove Widget",
+        "%@ 앱을 열 수 없습니다": "Cannot Open %@", "앱이 설치되어 있지 않거나 실행 링크를 지원하지 않습니다.": "The app isn't installed or doesn't support launch links.",
+        "App Store": "App Store", "이전": "Previous", "다음": "Next", "재생": "Play", "일시 정지": "Pause",
+        "재생 중인 음악 없음": "Nothing Playing", "음악 보관함 접근 필요": "Music library access needed", "%@ 종료": "Quit %@",
+        "지우기": "Clear", "켬": "ON", "끔": "OFF",
+    ]
+
+    static let widgets: [String: String] = [
+        "아날로그 시계": "Analog Clock", "디지털 시계": "Digital Clock", "음악 재생": "Now Playing", "배터리": "Battery",
+        "%@ 위젯": "%@ widget", "최고": "H", "최저": "L", "위치 권한이 필요합니다": "Location access needed",
+        "설정에서 도시를 지정할 수 있습니다": "You can set a city in Settings", "날씨 불러오는 중…": "Loading weather…", "탭하여 날씨 켜기": "Tap to turn on weather",
+        "위치를 확인할 수 없습니다": "Can't determine location", "현재 위치": "Current Location",
+        "날씨 정보를 가져오지 못했습니다": "Couldn't load weather",
+        "맑음": "Clear", "구름 조금": "Partly Cloudy", "흐림": "Cloudy", "안개": "Fog", "이슬비": "Drizzle",
+        "비": "Rain", "눈": "Snow", "뇌우": "Thunderstorms", "알 수 없음": "Unknown",
+        "배터리 사용 중": "On Battery", "상태 알 수 없음": "Unknown State", "배터리 정보 없음": "No battery info",
+        "Apple Watch·AirPods 배터리는 iOS가 다른 앱에 제공하지 않아 표시할 수 없습니다.": "Apple Watch & AirPods battery levels aren't available to third-party apps, so they aren't shown.",
+        "이전 달": "Previous Month", "다음 달": "Next Month", "캘린더 접근이 거부되었습니다": "Calendar access denied",
+        "일정을 보려면 캘린더를 열어 접근을 허용하세요": "Open Calendar and allow access to see events",
+        "예정된 일정 없음": "No Upcoming Events", "하루 종일": "All-day",
+        "사진 접근이 거부됨": "Photo access denied", "사진 없음": "No Photos", "사진 앱에서 접근을 허용하세요": "Allow access in Photos",
+        "메모 없음": "No Notes", "새로운 메모": "New Note", "음악 앱에서 접근을 허용하세요": "Allow access in Music",
+    ]
+
+    static let setup: [String: String] = [
+        "환영합니다": "Welcome", "홈 화면 구성": "Home Screen", "배경화면": "Wallpaper", "준비 완료": "All Set",
+        "시작": "Start", "언어": "Language",
+        "최신 아이폰에서 2010년의 아이폰을 사용해 보세요.": "Use a 2010 iPhone on your modern iPhone.",
+        "RetroPhone의 잠금화면은 앱 안의 가상 화면이며 기기 보안(암호·Face ID)과 무관합니다. 사용자 데이터는 기기 밖으로 전송되지 않습니다. (날씨 조회 시 대략적인 좌표만 날씨 서비스로 전송)": "RetroPhone's lock screen is a virtual in-app screen and has nothing to do with device security (passcode/Face ID). Your data never leaves the device (only approximate coordinates are sent to the weather service).",
+        "스크린샷에서 가져오기 (베타)": "Import from Screenshot (Beta)",
+        "실제 홈 화면 스크린샷의 앱 이름을 기기 안에서 인식해 배치 초안을 만듭니다. 아이콘·위젯·폴더 내용은 인식하지 못하므로 결과를 확인하고 수정하세요.": "App names in a screenshot of your real Home Screen are recognized on-device to draft a layout. Icons, widgets and folder contents can't be recognized, so review and edit the result.",
+        "분석 중…": "Analyzing…", "스크린샷 선택…": "Choose Screenshot…", "인식된 앱": "Recognized Apps",
+        "지원하지 않거나 인식하지 못한 이름": "Unsupported or unrecognized names", "초안 버리기": "Discard Draft",
+        "외부 앱 추가": "Add Other Apps",
+        "선택한 앱은 홈 화면 마지막 페이지에 추가됩니다. 앱이 설치되어 있지 않으면 웹 또는 App Store로 연결됩니다.": "Selected apps are added to the last Home Screen page. If an app isn't installed, it opens on the web or the App Store.",
+        "잠금화면과 홈 화면": "Lock & Home Screen", "모든 준비가 끝났습니다.": "You're all set.",
+        "홈 화면의 아이콘을 길게 누르면 편집할 수 있고, 아래의 가상 홈 버튼을 두 번 누르면 멀티태스킹이 열립니다. 언제든 화면 아래에서 위로 쓸어 올려 실제 iOS로 돌아갈 수 있습니다.": "Touch and hold an icon to edit the Home Screen; double-press the virtual Home button for multitasking. Swipe up from the bottom anytime to return to real iOS.",
+        "스크린샷을 분석하지 못했습니다": "Couldn't Analyze Screenshot", "홈 화면 스크린샷인지 확인하세요.": "Make sure it's a Home Screen screenshot.",
+        "물방울": "Droplets", "오로라": "Aurora", "리넨": "Linen", "밤하늘": "Night Sky", "노을": "Sunset",
+    ]
+
+    static let launcher: [String: String] = [:]
+}
