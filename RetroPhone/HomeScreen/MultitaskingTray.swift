@@ -61,7 +61,6 @@ struct MultitaskingTray: View {
             .frame(height: SpringboardView.trayHeight)
         }
         .onChange(of: router.multitaskingVisible) { _, v in if !v { closing = false } }
-        .accessibilityIdentifier("multitaskingTray")
     }
 
     private var musicControls: some View {

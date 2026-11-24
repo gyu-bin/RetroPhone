@@ -4,6 +4,7 @@ import SwiftUI
 struct SpringboardView: View {
     @Environment(AppRouter.self) private var router
     @Environment(\.deviceInsets) private var insets
+    @Environment(\.bezelPadding) private var bezelPadding
     static let trayHeight: CGFloat = 112
 
     var body: some View {
@@ -11,12 +12,22 @@ struct SpringboardView: View {
         let appOpen = router.currentApp != nil
         let locked = router.screen == .lock
         let shift = router.multitaskingVisible ? -Self.trayHeight : 0
+        let bezel = bezelPadding.bottom > 0
 
         ZStack(alignment: .bottom) {
-            MultitaskingTray()
-                .frame(height: Self.trayHeight + insets.bottom)
-                .opacity(router.multitaskingVisible ? 1 : 0)
-                .ignoresSafeArea(edges: .bottom)
+            Group {
+                if bezel {
+                    // Classic chin: the tray sits directly above it.
+                    MultitaskingTray()
+                        .frame(height: Self.trayHeight)
+                        .padding(.bottom, bezelPadding.bottom)
+                } else {
+                    MultitaskingTray()
+                        .frame(height: Self.trayHeight + insets.bottom)
+                        .ignoresSafeArea(edges: .bottom)
+                }
+            }
+            .opacity(router.multitaskingVisible ? 1 : 0)
 
             ZStack {
                 WallpaperView(choice: settings.homeWallpaper)
@@ -26,6 +37,7 @@ struct SpringboardView: View {
                     .scaleEffect(appOpen || locked ? 1.9 : 1)
                     .opacity(appOpen || locked ? 0 : 1)
                     .allowsHitTesting(!appOpen && !locked && !router.multitaskingVisible)
+                    .accessibilityHidden(appOpen || locked)
 
                 if let app = router.currentApp {
                     ClassicAppHost(app: app)
@@ -36,6 +48,13 @@ struct SpringboardView: View {
                         .zIndex(2)
                         .allowsHitTesting(!router.multitaskingVisible)
                 }
+            }
+            // With the chin, the screen ends at the chin's top edge (the wallpaper must not extend under it,
+            // or it would cover the tray when the screen slides up).
+            .mask(alignment: .bottom) {
+                Rectangle()
+                    .frame(height: 6000)
+                    .padding(.bottom, bezel ? bezelPadding.bottom : -200)
             }
             .shadow(color: .black.opacity(router.multitaskingVisible ? 0.7 : 0), radius: 6, y: 3)
             .offset(y: shift)
@@ -56,11 +75,14 @@ struct SpringboardView: View {
 /// in the top inset and the home button in the bottom inset.
 struct ClassicAppHost: View {
     var app: BuiltinApp
+    @Environment(\.bezelPadding) private var bezelPadding
 
     var body: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.black.ignoresSafeArea())
+            .padding(.top, bezelPadding.top)
+            .padding(.bottom, bezelPadding.bottom)
     }
 
     @ViewBuilder private var content: some View {

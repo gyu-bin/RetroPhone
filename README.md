@@ -7,6 +7,18 @@
 > 앱 안의 **가상** 잠금화면/홈 화면입니다. 시스템 홈 화면이나 보안 기능을 바꾸지 않으며,
 > 화면 하단에서 위로 쓸어 올리면 언제든 실제 iOS로 돌아갈 수 있습니다.
 
+## 스크린샷 (iOS 27 시뮬레이터)
+| 잠금화면 | 홈 화면 | 편집 모드 | 설정 |
+|---|---|---|---|
+| ![](docs/screenshots/01-lock.png) | ![](docs/screenshots/02-home.png) | ![](docs/screenshots/31-edit-mode.png) | ![](docs/screenshots/24-settings.png) |
+| 전화 | 날씨 | 계산기 | 브라우저 |
+| ![](docs/screenshots/10-phone.png) | ![](docs/screenshots/21-weather.png) | ![](docs/screenshots/22-calculator.png) | ![](docs/screenshots/19-browser.png) |
+
+전체 화면은 [docs/screenshots](docs/screenshots) 참고. 스크린샷 재생성:
+```bash
+TEST_RUNNER_RP_SCREENSHOTS=1 xcodebuild test -project RetroPhone.xcodeproj -scheme RetroPhone -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -resultBundlePath build/Tour.xcresult -only-testing:RetroPhoneUITests/ScreenshotTour
+```
+
 ## 요구 사항
 - Xcode 27 이상 (iOS 27 SDK), macOS 27
 - 배포 대상 iOS 26.0+ (iOS 27 우선 검증), iPhone 전용 세로 화면

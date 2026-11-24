@@ -395,7 +395,7 @@ final class PhotoLibraryWatcher {
 
     func start() {
         guard relay == nil, PhotoLibraryService.shared.canRead else { return }
-        let relay = PhotoChangeRelay { [weak self] in
+        let relay = PhotoChangeRelay { @Sendable [weak self] in
             Task { @MainActor in self?.scheduleBump() }
         }
         PHPhotoLibrary.shared().register(relay)

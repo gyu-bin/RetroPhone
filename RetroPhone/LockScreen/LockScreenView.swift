@@ -54,7 +54,6 @@ struct LockScreenView: View {
             .ignoresSafeArea()
         }
         .onChange(of: router.lockGeneration) { departing = false }
-        .accessibilityIdentifier("lockScreen")
     }
 
     private func unlock() {
@@ -145,12 +144,12 @@ struct SlideToUnlock: View {
                         }
                     }
             )
-            .accessibilityIdentifier("unlockKnob")
         }
         .frame(width: trackW, height: trackH)
         .accessibilityElement()
         .accessibilityLabel(L("밀어서 잠금 해제"))
         .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("unlockSlider")
         .accessibilityAction { done = true; onUnlock() }
     }
 }

@@ -327,7 +327,7 @@ struct PhoneFavoritesView: View {
                 }
             }
         }
-        .sheet(isPresented: $showPicker) {
+        .retroSheet(isPresented: $showPicker) {
             ContactPhonePickerSheet(title: L("즐겨찾기 추가")) { contact, phone in
                 store.addFavorite(name: contactDisplayName(contact), number: phone.value,
                                   label: phone.label, contactID: contact.id)

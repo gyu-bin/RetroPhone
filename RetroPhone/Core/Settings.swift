@@ -48,6 +48,9 @@ struct RetroSettings: Codable, Equatable {
     var use24HourClock = false
     var themeEra: ThemeEra = .ios4
     var showBatteryPercentage = true
+    /// iPhone 4-style thick top/bottom bezels (black top bar over the Dynamic Island area,
+    /// chin with a large home button). The "screen" sits between them.
+    var classicBezel = true
 
     init() {}
 
@@ -71,6 +74,7 @@ struct RetroSettings: Codable, Equatable {
         use24HourClock = (try? c.decode(Bool.self, forKey: .use24HourClock)) ?? d.use24HourClock
         themeEra = (try? c.decode(ThemeEra.self, forKey: .themeEra)) ?? d.themeEra
         showBatteryPercentage = (try? c.decode(Bool.self, forKey: .showBatteryPercentage)) ?? d.showBatteryPercentage
+        classicBezel = (try? c.decode(Bool.self, forKey: .classicBezel)) ?? d.classicBezel
     }
 
     static let defaults = RetroSettings()

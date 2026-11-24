@@ -41,7 +41,7 @@ struct CalendarAppView: View {
             }
             .ignoresSafeArea()
         }
-        .sheet(isPresented: $showCalendars) {
+        .retroSheet(isPresented: $showCalendars) {
             CalAppVisibilitySheet(hidden: $hidden)
         }
         .onChange(of: hidden) { _, newValue in

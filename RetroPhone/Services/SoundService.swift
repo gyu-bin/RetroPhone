@@ -27,8 +27,13 @@ final class SoundService {
     private func startIfNeeded() -> Bool {
         if started && engine.isRunning { return true }
         do {
-            try AVAudioSession.sharedInstance().setCategory(.ambient, options: [.mixWithOthers])
-            try AVAudioSession.sharedInstance().setActive(true)
+            let session = AVAudioSession.sharedInstance()
+            // Never steal the session from an active recording/playback (Voice Memos, Music):
+            // only claim .ambient when the session is still in a default ambient category.
+            if session.category == .ambient || session.category == .soloAmbient {
+                try session.setCategory(.ambient, options: [.mixWithOthers])
+                try session.setActive(true)
+            }
             if players.isEmpty {
                 for _ in 0..<5 {
                     let p = AVAudioPlayerNode()

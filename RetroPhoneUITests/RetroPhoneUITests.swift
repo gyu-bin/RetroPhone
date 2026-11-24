@@ -11,17 +11,18 @@ final class RetroPhoneUITests: XCTestCase {
     }
 
     private func unlock() {
-        let knob = app.otherElements["unlockKnob"].firstMatch
-        XCTAssertTrue(knob.waitForExistence(timeout: 5), "lock screen slider visible")
-        let start = knob.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-        let end = start.withOffset(CGVector(dx: 320, dy: 0))
+        let slider = app.descendants(matching: .any)["unlockSlider"].firstMatch
+        XCTAssertTrue(slider.waitForExistence(timeout: 8), "lock screen slider visible")
+        // Grab the knob at the left end of the track and drag it all the way right.
+        let start = slider.coordinate(withNormalizedOffset: CGVector(dx: 0.14, dy: 0.5))
+        let end = slider.coordinate(withNormalizedOffset: CGVector(dx: 1.0, dy: 0.5))
         start.press(forDuration: 0.05, thenDragTo: end)
     }
 
     func testSlideToUnlockShowsHomeScreen() {
         unlock()
-        XCTAssertTrue(app.otherElements["homeScreen"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["icon.builtin.settings"].waitForExistence(timeout: 3) || app.otherElements["icon.builtin.settings"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["icon.builtin.settings"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["unlockSlider"].firstMatch.exists)
     }
 
     func testOpenAppAndReturnWithHomeButton() {
@@ -44,6 +45,42 @@ final class RetroPhoneUITests: XCTestCase {
         icon.press(forDuration: 1.2)
         XCTAssertTrue(app.descendants(matching: .any)["homeDoneButton"].firstMatch.waitForExistence(timeout: 3))
         app.descendants(matching: .any)["homeDoneButton"].firstMatch.tap()
+    }
+
+    private func element(_ id: String) -> XCUIElement { app.descendants(matching: .any)[id].firstMatch }
+
+    func testEditModeTapOpensIconEditor() {
+        unlock()
+        let notes = element("icon.builtin.notes")
+        XCTAssertTrue(notes.waitForExistence(timeout: 5))
+        notes.press(forDuration: 1.2)                       // enter edit mode
+        XCTAssertTrue(element("homeDoneButton").waitForExistence(timeout: 3))
+        notes.tap()                                         // tap while editing → rename / icon sheet
+        XCTAssertTrue(app.staticTexts["아이콘 편집"].waitForExistence(timeout: 3))
+        XCTAssertTrue(element("iconNameField").exists)
+    }
+
+    func testDragAppOntoAppCreatesFolderThatOpens() {
+        unlock()
+        let calendar = element("icon.builtin.calendar")
+        let camera = element("icon.builtin.camera")
+        XCTAssertTrue(calendar.waitForExistence(timeout: 5))
+        calendar.press(forDuration: 1.2)                    // enter edit mode
+        XCTAssertTrue(element("homeDoneButton").waitForExistence(timeout: 3))
+        // Drag the camera onto the calendar and hold until the folder forms.
+        let from = camera.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+        let to = calendar.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+        from.press(forDuration: 0.1, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 1.2)
+        sleep(1)
+        let dots = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH '페이지'")).firstMatch
+        XCTAssertFalse(dots.label.hasSuffix("/3"), "drag finished (no extra drop page left over)")
+        XCTAssertFalse(camera.exists, "camera moved into the folder")
+        element("homeDoneButton").tap()
+        sleep(1)
+        let folder = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS '앱 2개'")).firstMatch
+        XCTAssertTrue(folder.waitForExistence(timeout: 3), "folder icon on the home screen")
+        folder.tap()
+        XCTAssertTrue(element("icon.builtin.camera").waitForExistence(timeout: 3), "folder panel shows its apps")
     }
 
     func testLaunchPerformance() {

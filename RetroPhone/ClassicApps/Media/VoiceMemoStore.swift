@@ -139,7 +139,7 @@ final class VoiceRecorder {
     @ObservationIgnored private let relay = RecorderDelegateRelay()
 
     init() {
-        relay.onFailure = { [weak self] in
+        relay.onFailure = { @Sendable [weak self] in
             Task { @MainActor in self?.recordingFailed() }
         }
     }
@@ -317,7 +317,7 @@ final class VoiceMemoPlayer {
     @ObservationIgnored private let relay = PlayerDelegateRelay()
 
     init() {
-        relay.onFinish = { [weak self] in
+        relay.onFinish = { @Sendable [weak self] in
             Task { @MainActor in self?.finished() }
         }
     }

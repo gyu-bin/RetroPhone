@@ -34,7 +34,7 @@ struct BrowserAppView: View {
         .onChange(of: focus) { _, newValue in
             if newValue == .address { addressText = BrowserURL.displayString(for: session.current.url) }
         }
-        .sheet(isPresented: $showBookmarks) {
+        .retroSheet(isPresented: $showBookmarks) {
             BrowserBookmarksView(currentTab: session.current, engine: $engine) { url in
                 session.current.load(url)
             }

@@ -177,6 +177,7 @@ struct HomeSettingsView: View {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { withAnimation { router.isEditingHome = true } }
                 } label: { TableRow(title: L("홈 화면 편집"), chevron: true) }.buttonStyle(.plain)
                 Button { showAdd = true } label: { TableRow(title: L("앱·위젯 추가"), chevron: true) }.buttonStyle(.plain)
+                ToggleRow(title: L("클래식 베젤 (위·아래)"), isOn: binding(\.classicBezel))
                 ToggleRow(title: L("가상 홈 버튼 표시"), isOn: binding(\.showHomeButton))
             }
             GroupedSection(header: L("위젯")) {
@@ -205,7 +206,7 @@ struct HomeSettingsView: View {
                 Button { confirmReset = true } label: { TableRow(title: L("홈 화면 배치 초기화"), destructive: true) }.buttonStyle(.plain)
             }
         }
-        .fullScreenCover(isPresented: $showAdd) { AddToHomeSheet() }
+        .fullScreenCover(isPresented: $showAdd) { AddToHomeSheet().retroModalChrome() }
         .retroAlert(L("홈 화면 배치를 초기화할까요?"), isPresented: $confirmReset, message: L("폴더와 위치가 기본값으로 돌아갑니다. 추가한 바로가기는 유지됩니다."),
                     buttons: [RetroAlertButton(title: L("취소")), RetroAlertButton(title: L("초기화"), isPreferred: true) {
                         store.update { l in

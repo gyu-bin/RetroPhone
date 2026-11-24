@@ -121,20 +121,21 @@ struct BatteryGlyph: View {
 /// One press = home, two presses = multitasking. System gestures are never blocked.
 struct VirtualHomeButton: View {
     var router: AppRouter
+    var size: CGFloat = 30
 
     var body: some View {
         ZStack {
             Circle()
                 .fill(LinearGradient(colors: [Color(hex: 0x0A0A0A), Color(hex: 0x3A3A3A)], startPoint: .top, endPoint: .bottom))
             Circle().stroke(LinearGradient(colors: [Color(hex: 0x1A1A1A), Color(hex: 0x6A6A6A)], startPoint: .top, endPoint: .bottom), lineWidth: 1.5)
-            RoundedRectangle(cornerRadius: 2.5, style: .continuous)
-                .stroke(Color(hex: 0xBDBDBD), lineWidth: 1.2)
-                .frame(width: 10, height: 10)
+            RoundedRectangle(cornerRadius: size * 0.085, style: .continuous)
+                .stroke(Color(hex: 0xBDBDBD), lineWidth: max(1.2, size * 0.04))
+                .frame(width: size * 0.34, height: size * 0.34)
         }
-        .frame(width: 30, height: 30)
+        .frame(width: size, height: size)
         .shadow(color: .white.opacity(0.25), radius: 0, y: 1)
         .opacity(0.9)
-        .frame(width: 60, height: 34)
+        .frame(width: max(60, size + 24), height: max(34, size + 8))
         .contentShape(Rectangle())
         .gesture(
             TapGesture(count: 2).onEnded {

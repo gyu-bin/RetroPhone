@@ -6,6 +6,9 @@ struct HomeScreenView: View {
     @State private var drag = HomeDragController()
     @State private var pageDrag: CGFloat = 0
     @State private var pressedItem: UUID?
+    @State private var suppressNextTap = false
+    /// Resets automatically when an item gesture ends *or is cancelled* — used to finish stuck drags.
+    @GestureState private var itemGestureActive = false
     @State private var editingApp: AppID?
     @State private var editingWidget: UUID?
     @State private var showAddSheet = false
@@ -30,7 +33,8 @@ struct HomeScreenView: View {
                 .offset(x: -CGFloat(router.currentPage) * m.size.width + pageDrag)
                 .frame(width: m.size.width, height: m.size.height, alignment: .leading)
                 .contentShape(Rectangle())
-                .gesture(pagerGesture(m, pageCount: pageCount))
+                // While an icon is being dragged only the icon's gesture may run (no page swipe stealing it).
+                .gesture(pagerGesture(m, pageCount: pageCount), including: drag.isActive ? .subviews : .all)
 
                 // Page dots + edit controls
                 pageDots(count: pageCount, metrics: m)
@@ -56,21 +60,24 @@ struct HomeScreenView: View {
             .coordinateSpace(name: "home")
         }
         .ignoresSafeArea()
-        .fullScreenCover(isPresented: $showAddSheet) { AddToHomeSheet() }
+        .fullScreenCover(isPresented: $showAddSheet) { AddToHomeSheet().retroModalChrome() }
         .fullScreenCover(item: Binding(get: { editingApp.map(IdentifiedApp.init) }, set: { editingApp = $0?.id })) { app in
-            IconEditSheet(app: app.id)
+            IconEditSheet(app: app.id).retroModalChrome()
         }
         .fullScreenCover(item: Binding(get: { editingWidget.map(IdentifiedUUID.init) }, set: { editingWidget = $0?.id })) { w in
-            WidgetEditSheet(itemID: w.id)
+            WidgetEditSheet(itemID: w.id).retroModalChrome()
         }
         .retroAlert(launchError.map { LF("%@ 앱을 열 수 없습니다", $0.displayName) } ?? "",
                     isPresented: Binding(get: { launchError != nil }, set: { if !$0 { launchError = nil } }),
                     message: L("앱이 설치되어 있지 않거나 실행 링크를 지원하지 않습니다."),
                     buttons: launchErrorButtons)
+        .onChange(of: itemGestureActive) { _, active in
+            // A cancelled gesture never calls onEnded; finish the drag where the finger last was.
+            if !active, drag.isActive, let m = drag.metrics { drop(metrics: m) }
+        }
         .onChange(of: store.layout.pages.count) { _, count in
             if router.currentPage >= count && !drag.isActive { router.currentPage = max(0, count - 1) }
         }
-        .accessibilityIdentifier("homeScreen")
     }
 
     // MARK: Page
@@ -143,7 +150,7 @@ struct HomeScreenView: View {
             .frame(width: m.frameSize(of: placement).width, height: m.frameSize(of: placement).height)
             .contentShape(Rectangle())
             .onTapGesture { tap(item, metrics: m) }
-            .highPriorityGesture(itemGesture(source: .page(item.id), item: item, metrics: m))
+            .simultaneousGesture(itemGesture(source: .page(item.id), item: item, metrics: m))
         }
     }
 
@@ -154,8 +161,11 @@ struct HomeScreenView: View {
         let apps = dockDisplayApps(m)
         let centers = m.dockSlotCenters(count: apps.count)
         ZStack(alignment: .topLeading) {
+            // With the classic chin the shelf only needs to reach just under it (so it doesn't show
+            // as a band when the screen slides up for multitasking).
+            let shelfBottom = m.insets.bottom > 60 ? m.size.height - m.insets.bottom + 12 : m.size.height
             DockShelf()
-                .frame(width: m.size.width, height: m.size.height - m.dockTop + 10)
+                .frame(width: m.size.width, height: shelfBottom - m.dockTop - m.iconSize * 0.62 + 10)
                 .offset(y: m.dockTop + m.iconSize * 0.62)
             ForEach(Array(apps.enumerated()), id: \.element) { i, app in
                 if app.raw == "ghost" {
@@ -179,7 +189,7 @@ struct HomeScreenView: View {
                     .frame(width: m.cellWidth, height: m.iconSize * 1.3 + 4)
                     .contentShape(Rectangle())
                     .onTapGesture { tapDock(app, center: centers[i], metrics: m) }
-                    .highPriorityGesture(itemGesture(source: .dock(app), item: .app(app), metrics: m))
+                    .simultaneousGesture(itemGesture(source: .dock(app), item: .app(app), metrics: m))
                     .opacity(drag.draggedDockApp == app ? 0 : 1)
                     .position(x: centers[i].x, y: centers[i].y + m.iconSize * 0.15)
                 }
@@ -276,28 +286,55 @@ struct HomeScreenView: View {
             }
     }
 
-    private func itemGesture(source: HomeDragController.Source, item: HomeItem, metrics m: HomeMetrics) -> some Gesture {
-        LongPressGesture(minimumDuration: router.isEditingHome ? 0.15 : 0.55, maximumDistance: 10)
-            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .named("home")))
-            .onChanged { value in
-                switch value {
-                case .first(true):
-                    enterEditing()
-                case .second(true, let d?):
-                    enterEditing()
-                    if !drag.isActive {
-                        drag.begin(source, item: item, at: d.location)
+    /// Not editing: touch-and-hold (0.55 s) enters edit mode and can continue straight into a drag.
+    /// Editing: any movement ≥ 6 pt drags the icon (like iOS 4); a still press stays a tap.
+    private func itemGesture(source: HomeDragController.Source, item: HomeItem, metrics m: HomeMetrics) -> AnyGesture<Void> {
+        if router.isEditingHome {
+            return AnyGesture(
+                DragGesture(minimumDistance: 6, coordinateSpace: .named("home"))
+                    .updating($itemGestureActive) { _, state, _ in state = true }
+                    .onChanged { d in dragChanged(d, source: source, item: item, metrics: m) }
+                    .onEnded { _ in if drag.isActive { drop(metrics: m) } }
+                    .map { _ in () }
+            )
+        }
+        return AnyGesture(
+            LongPressGesture(minimumDuration: 0.55, maximumDistance: 10)
+                .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .named("home")))
+                .updating($itemGestureActive) { _, state, _ in state = true }
+                .onChanged { value in
+                    // `.first(true)` only means the finger is down; the hold completed once we reach `.second`.
+                    guard case .second(true, let d) = value else { return }
+                    if !suppressNextTap {
+                        suppressNextTap = true   // the finger lift after a hold must not count as a tap
+                        // Safety net: entering edit mode swaps this gesture out, so onEnded may never run.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { suppressNextTap = false }
                     }
-                    let pageItems = router.currentPage < store.layout.pages.count ? store.layout.pages[router.currentPage] : []
-                    drag.update(to: d.location, metrics: m, pageItems: pageItems, dockCount: store.layout.dock.count) { dir in
-                        flipPage(dir)
-                    }
-                default: break
+                    enterEditing()
+                    if let d { dragChanged(d, source: source, item: item, metrics: m) }
                 }
-            }
-            .onEnded { _ in
-                if drag.isActive { drop(metrics: m) }
-            }
+                .onEnded { _ in
+                    if drag.isActive { drop(metrics: m) }
+                    clearSuppressSoon()
+                }
+                .map { _ in () }
+        )
+    }
+
+    private func clearSuppressSoon() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { suppressNextTap = false }
+    }
+
+    private func dragChanged(_ d: DragGesture.Value, source: HomeDragController.Source, item: HomeItem, metrics m: HomeMetrics) {
+        if !drag.isActive {
+            var origin: Int?
+            if case .page(let id) = source { origin = store.layout.locate(id)?.index }
+            drag.begin(source, item: item, at: d.location, originIndex: origin)
+        }
+        let pageItems = router.currentPage < store.layout.pages.count ? store.layout.pages[router.currentPage] : []
+        drag.update(to: d.location, metrics: m, pageItems: pageItems, dockCount: store.layout.dock.count) { dir in
+            flipPage(dir)
+        }
     }
 
     private func enterEditing() {
@@ -365,6 +402,7 @@ struct HomeScreenView: View {
     // MARK: Taps
 
     private func tap(_ item: HomeItem, metrics m: HomeMetrics) {
+        if suppressNextTap { suppressNextTap = false; return }
         guard !drag.isActive else { return }
         let center = store.layout.locate(item.id).map { loc -> CGPoint in
             let placements = HomeLayout.placements(for: store.layout.pages[loc.page])
@@ -387,6 +425,7 @@ struct HomeScreenView: View {
     }
 
     private func tapDock(_ app: AppID, center: CGPoint, metrics m: HomeMetrics) {
+        if suppressNextTap { suppressNextTap = false; return }
         guard !drag.isActive else { return }
         if router.isEditingHome { editingApp = app; return }
         pressedDock = app

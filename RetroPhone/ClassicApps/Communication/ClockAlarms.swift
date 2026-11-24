@@ -235,7 +235,7 @@ struct ClockAlarmListView: View {
                 }
             }
         }
-        .sheet(item: $editorAlarm) { alarm in
+        .retroSheet(item: $editorAlarm) { alarm in
             ClockAlarmEditor(alarm: alarm, isNew: !store.alarms.contains(where: { $0.id == alarm.id })) { saved in
                 if let saved {
                     Task {

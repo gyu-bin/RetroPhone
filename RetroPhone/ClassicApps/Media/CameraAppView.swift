@@ -118,7 +118,7 @@ final class CameraModel {
         configureToken += 1
         let token = configureToken
         let id = device.uniqueID
-        engine.configure(deviceID: id) { [weak self] ok in
+        engine.configure(deviceID: id) { @Sendable [weak self] ok in
             Task { @MainActor in self?.didConfigure(ok, deviceID: id, token: token) }
         }
     }
@@ -166,7 +166,7 @@ final class CameraModel {
         isBusy = true
         captureStartedAt = Date()
         Haptics.tap(.medium)
-        SoundService.shared.play(.shutter)
+        // AVCapturePhotoOutput already plays the (non-mutable in some regions) system shutter sound.
         withAnimation(.easeIn(duration: 0.12)) { irisOpenness = 0 }
 
         let angle = rotationCoordinator?.videoRotationAngleForHorizonLevelCapture ?? 90

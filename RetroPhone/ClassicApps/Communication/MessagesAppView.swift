@@ -310,7 +310,7 @@ struct NewMessageView: View {
                 }
             }
         }
-        .sheet(isPresented: $showPicker) {
+        .retroSheet(isPresented: $showPicker) {
             ContactPhonePickerSheet(title: L("받는 사람 선택")) { contact, phone in
                 addRecipient(Recipient(name: contactDisplayName(contact), number: phone.value))
             }

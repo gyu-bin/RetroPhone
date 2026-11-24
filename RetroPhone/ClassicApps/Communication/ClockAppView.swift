@@ -206,7 +206,7 @@ struct ClockWorldView: View {
                 }
             }
         }
-        .sheet(isPresented: $showAdd) {
+        .retroSheet(isPresented: $showAdd) {
             ClockCityPicker { id in store.add(id) }
         }
     }

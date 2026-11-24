@@ -53,8 +53,10 @@ enum FileStore {
     @discardableResult
     static func saveImage(_ image: UIImage, maxDimension: CGFloat, name: String = UUID().uuidString) -> String? {
         let scaled = image.downscaled(maxDimension: maxDimension)
-        guard let data = scaled.pngData() else { return nil }
-        let file = name + ".png"
+        // Small images (icons) keep PNG for crisp edges/transparency; photos (wallpapers) use JPEG.
+        let usePNG = maxDimension <= 600
+        guard let data = usePNG ? scaled.pngData() : scaled.jpegData(compressionQuality: 0.88) else { return nil }
+        let file = name + (usePNG ? ".png" : ".jpg")
         do {
             try data.write(to: imagesURL.appendingPathComponent(file), options: [.atomic, .completeFileProtection])
             ImageCache.shared.remove(file)

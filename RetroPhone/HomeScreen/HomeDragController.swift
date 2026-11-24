@@ -12,6 +12,8 @@ final class HomeDragController {
     private(set) var source: Source?
     private(set) var item: HomeItem?
     var location: CGPoint = .zero
+    /// Geometry of the last update (used to finish a drag whose gesture was cancelled).
+    private(set) var metrics: HomeMetrics?
     /// Insertion index on the current page (in the list that excludes the dragged item).
     var targetIndex: Int?
     var dockIndex: Int?
@@ -20,16 +22,20 @@ final class HomeDragController {
     private var hoverCandidate: UUID?
     private var hoverSince = Date.distantPast
     private var edgeTask: Task<Void, Never>?
+    private var hoverTask: Task<Void, Never>?
     private var edgeDirection = 0
 
     var isActive: Bool { source != nil }
     var draggedPageID: UUID? { if case .page(let id) = source { return id }; return nil }
     var draggedDockApp: AppID? { if case .dock(let a) = source { return a }; return nil }
 
-    func begin(_ source: Source, item: HomeItem, at point: CGPoint) {
+    /// - Parameter originIndex: the item's index on the current page, so the gap stays where the
+    ///   icon was picked up (iOS 4 didn't reflow until the finger moved to a new slot).
+    func begin(_ source: Source, item: HomeItem, at point: CGPoint, originIndex: Int? = nil) {
         self.source = source
         self.item = item
         location = point
+        targetIndex = originIndex
         Haptics.tap(.medium)
     }
 
@@ -41,6 +47,8 @@ final class HomeDragController {
         overDock = false
         folderTarget = nil
         hoverCandidate = nil
+        hoverTask?.cancel()
+        hoverTask = nil
         edgeTask?.cancel()
         edgeTask = nil
         edgeDirection = 0
@@ -50,6 +58,7 @@ final class HomeDragController {
     func update(to point: CGPoint, metrics: HomeMetrics, pageItems: [HomeItem], dockCount: Int,
                 flipPage: @escaping (Int) -> Void) {
         location = point
+        self.metrics = metrics
         guard let item else { return }
 
         overDock = metrics.isInDock(point)
@@ -93,14 +102,23 @@ final class HomeDragController {
                 return hypot(iconCenter.x - point.x, iconCenter.y - point.y) < radius
             }?.0
             if let hit {
-                if hoverCandidate != hit.id { hoverCandidate = hit.id; hoverSince = Date() }
-                else if Date().timeIntervalSince(hoverSince) > 0.4, folderTarget != hit.id {
-                    folderTarget = hit.id
-                    Haptics.selection()
+                if hoverCandidate != hit.id {
+                    hoverCandidate = hit.id
+                    hoverSince = Date()
+                    // Fire even if the finger stays perfectly still (no further drag updates arrive).
+                    hoverTask?.cancel()
+                    let id = hit.id
+                    hoverTask = Task { @MainActor [weak self] in
+                        try? await Task.sleep(for: .milliseconds(400))
+                        guard let self, !Task.isCancelled, self.hoverCandidate == id, self.folderTarget != id else { return }
+                        self.folderTarget = id
+                        Haptics.selection()
+                    }
                 }
                 return  // Don't reflow while hovering an icon.
             }
         }
+        hoverTask?.cancel()
         hoverCandidate = nil
         folderTarget = nil
         let cell = metrics.cell(at: point)
