@@ -136,10 +136,25 @@ final class CameraModel {
             let angle = coordinator.videoRotationAngleForHorizonLevelPreview
             if connection.isVideoRotationAngleSupported(angle) { connection.videoRotationAngle = angle }
         }
+        engine.setPreviewGeometry(rotationAngle: coordinator.videoRotationAngleForHorizonLevelPreview,
+                                  mirrored: position == .front)
         engine.start()
         phase = .running
         withAnimation(.easeOut(duration: 0.45).delay(0.35)) { irisOpenness = 1 }
     }
+
+    #if DEBUG
+    /// Simulator aid (`-cameraDemo <image path>`): the simulator has no camera, so show the camera
+    /// chrome over a still photo to check the UI and the live-filter look.
+    private(set) var demoImage: CGImage?
+
+    func startDemo(_ image: CGImage) {
+        demoImage = image
+        hasFlash = true
+        phase = .running
+        withAnimation(.easeOut(duration: 0.45).delay(0.35)) { irisOpenness = 1 }
+    }
+    #endif
 
     func switchCamera() {
         guard canSwitch, phase == .running, !isBusy else { return }
@@ -231,9 +246,11 @@ final class CameraModel {
 struct CameraAppView: View {
     @Environment(AppRouter.self) private var router
     @State private var model = CameraModel()
-    @AppStorage("retro.camera.look") private var look: CameraLook = .original
+    /// Defaults to the iPhone 4 look so photos feel like the old phone from the first shot.
+    @AppStorage("retro.camera.look") private var look: CameraLook = .iPhone4
     @AppStorage("retro.camera.flash") private var flash: CameraFlashMode = .auto
     @State private var flashExpanded = false
+    @State private var lookExpanded = false
 
     var body: some View {
         ZStack {
@@ -254,7 +271,18 @@ struct CameraAppView: View {
             }
         }
         .retroStatusBarHidden()
-        .task { await model.start() }
+        .onChange(of: look, initial: true) { _, new in model.engine.livePreview.preset = new.preset }
+        .task {
+            #if DEBUG
+            let args = ProcessInfo.processInfo.arguments
+            if let i = args.firstIndex(of: "-cameraDemo"), i + 1 < args.count,
+               let image = UIImage(contentsOfFile: args[i + 1])?.normalizedOrientation().cgImage {
+                model.startDemo(image)
+                return
+            }
+            #endif
+            await model.start()
+        }
         .onDisappear { model.stop() }
         .retroAlert(L("사진을 저장할 수 없음"), isPresented: $model.saveFailed,
                     message: L("iOS 설정에서 사진 추가 권한을 확인하세요."))
@@ -263,10 +291,11 @@ struct CameraAppView: View {
     private var cameraUI: some View {
         VStack(spacing: 0) {
             ZStack {
-                CameraPreview(session: model.engine.session) { model.previewLayer = $0 }
+                CameraPreview(session: model.engine.session, live: model.engine.livePreview,
+                              filtered: look.preset != nil, demoImage: demoFrame) { model.previewLayer = $0 }
                     .onTapGesture(coordinateSpace: .local) { location in
-                        if flashExpanded {
-                            withAnimation(.easeOut(duration: 0.2)) { flashExpanded = false }
+                        if flashExpanded || lookExpanded {
+                            withAnimation(.easeOut(duration: 0.2)) { flashExpanded = false; lookExpanded = false }
                         } else {
                             model.focus(atLayerPoint: location)
                         }
@@ -283,27 +312,49 @@ struct CameraAppView: View {
                 VStack {
                     topControls
                     Spacer()
-                    RetroSegmented(options: CameraLook.allCases.map { ($0, $0.title) }, selection: $look, style: .black)
-                        .opacity(0.92)
-                        .padding(.horizontal, 22)
-                        .padding(.bottom, 10)
-                        .accessibilityLabel(L("필터"))
                 }
             }
             .aspectRatio(3.0 / 4.0, contentMode: .fit)
             .clipped()
-            Spacer(minLength: 0)
+            .layoutPriority(1)
+            // The metal bar takes all the room under the 3:4 preview, as on the 3:2 iPhone 4 screen.
             bottomBar
         }
     }
 
+    /// Demo still, run through the same live filter as camera frames.
+    private var demoFrame: CGImage? {
+        #if DEBUG
+        guard let image = model.demoImage else { return nil }
+        guard let preset = look.preset else { return image }
+        return model.engine.livePreview.render(CIImage(cgImage: image), preset: preset) ?? image
+        #else
+        return nil
+        #endif
+    }
+
+    /// iOS 4 layout: flash pill on the left, camera switch on the right; the look pill sits in the
+    /// middle where the HDR button was. An expanded pill hides the others.
     private var topControls: some View {
-        HStack(alignment: .top) {
-            if model.hasFlash {
-                FlashModeControl(mode: $flash, expanded: $flashExpanded)
+        ZStack(alignment: .top) {
+            if !flashExpanded {
+                CameraOptionPill(icon: nil, options: CameraLook.allCases.map { ($0, $0.title) },
+                                 selection: $look, expanded: $lookExpanded, label: L("필터"))
+                    .frame(maxWidth: .infinity)
             }
-            Spacer()
-            if model.canSwitch && !flashExpanded {
+            sideControls
+        }
+        .padding(10)
+    }
+
+    private var sideControls: some View {
+        HStack(alignment: .top) {
+            if model.hasFlash && !lookExpanded {
+                CameraOptionPill(icon: "bolt.fill", options: CameraFlashMode.allCases.map { ($0, $0.title) },
+                                 selection: $flash, expanded: $flashExpanded, label: L("플래시"))
+            }
+            Spacer(minLength: 0)
+            if model.canSwitch && !flashExpanded && !lookExpanded {
                 Button { model.switchCamera() } label: {
                     Image(systemName: "arrow.triangle.2.circlepath.camera")
                         .font(.system(size: 18, weight: .semibold))
@@ -316,7 +367,6 @@ struct CameraAppView: View {
                 .accessibilityLabel(L("카메라 전환"))
             }
         }
-        .padding(10)
     }
 
     private var bottomBar: some View {
@@ -349,7 +399,8 @@ struct CameraAppView: View {
                 .accessibilityLabel(L("카메라 롤"))
                 Spacer()
                 ShutterButton(enabled: model.phase == .running && !model.isBusy) {
-                    if flashExpanded { flashExpanded = false }
+                    flashExpanded = false
+                    lookExpanded = false
                     model.capture(look: look, flash: flash)
                 }
                 Spacer()
@@ -357,7 +408,7 @@ struct CameraAppView: View {
             }
             .padding(.horizontal, 16)
         }
-        .frame(height: 96)
+        .frame(minHeight: 96, maxHeight: .infinity)
     }
 }
 
@@ -374,41 +425,53 @@ struct CameraGlassBackground: View {
     }
 }
 
-/// Collapsed: ⚡ + current mode. Tapped: expands to 자동 / 켬 / 끔 like the iOS 4 camera.
-struct FlashModeControl: View {
-    @Binding var mode: CameraFlashMode
+/// iOS 4 camera option pill. Collapsed: optional glyph + current value. Tapped: expands to all
+/// options (current one in yellow), like the classic flash control.
+struct CameraOptionPill<Option: Hashable>: View {
+    var icon: String?
+    var options: [(Option, String)]
+    @Binding var selection: Option
     @Binding var expanded: Bool
+    var label: String
 
     var body: some View {
         HStack(spacing: 0) {
-            Image(systemName: "bolt.fill")
-                .font(.system(size: 15, weight: .bold))
-                .frame(width: 30)
+            if let icon {
+                Image(systemName: icon)
+                    .font(.system(size: 15, weight: .bold))
+                    .frame(width: 30)
+            }
             if expanded {
-                ForEach(CameraFlashMode.allCases) { option in
+                ForEach(options, id: \.0) { option, title in
                     Button {
                         Haptics.selection()
-                        mode = option
+                        selection = option
                         withAnimation(.easeOut(duration: 0.2)) { expanded = false }
                     } label: {
-                        Text(option.title)
+                        Text(title)
                             .font(.retroFixed(14, .bold))
-                            .foregroundStyle(option == mode ? Color(hex: 0xFFE14D) : .white)
+                            .foregroundStyle(option == selection ? Color(hex: 0xFFE14D) : .white)
+                            .lineLimit(1)
+                            .fixedSize()
+                            .padding(.horizontal, 7)
                             .frame(minWidth: 44, minHeight: 34)
                     }
                     .buttonStyle(.plain)
                 }
             } else {
-                Text(mode.title)
+                Text(options.first { $0.0 == selection }?.1 ?? "")
                     .font(.retroFixed(14, .bold))
-                    .padding(.trailing, 12)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.leading, icon == nil ? 14 : 0)
+                    .padding(.trailing, 14)
             }
         }
         .foregroundStyle(.white)
         .shadow(color: .black.opacity(0.5), radius: 0, y: -1)
         .frame(height: 34)
-        .padding(.leading, 4)
-        .padding(.trailing, expanded ? 6 : 0)
+        .padding(.leading, icon == nil ? 0 : 4)
+        .padding(.horizontal, expanded ? 4 : 0)
         .background(CameraGlassBackground())
         .contentShape(Rectangle())
         .onTapGesture {
@@ -417,8 +480,8 @@ struct FlashModeControl: View {
             withAnimation(.easeOut(duration: 0.2)) { expanded = true }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(L("플래시"))
-        .accessibilityValue(mode.title)
+        .accessibilityLabel(label)
+        .accessibilityValue(options.first { $0.0 == selection }?.1 ?? "")
     }
 }
 

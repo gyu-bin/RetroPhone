@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreImage
 import SwiftUI
 import UIKit
 
@@ -10,6 +11,10 @@ nonisolated final class CaptureEngine: @unchecked Sendable {
     private let photoOutput = AVCapturePhotoOutput()
     private var input: AVCaptureDeviceInput?
     private var inFlight: [Int64: PhotoCaptureDelegate] = [:]
+    /// Live "old phone" preview: frames from this output are filtered and drawn over the plain preview.
+    let livePreview = LiveFilterPreview()
+    private let videoOutput = AVCaptureVideoDataOutput()
+    private let videoQueue = DispatchQueue(label: "RetroPhone.camera.frames", qos: .userInitiated)
 
     /// Attaches the camera with `deviceID` (replacing any current camera). Calls back on the
     /// session queue with success.
@@ -37,7 +42,26 @@ nonisolated final class CaptureEngine: @unchecked Sendable {
             guard session.canAddOutput(photoOutput) else { return false }
             session.addOutput(photoOutput)
         }
+        // Optional: without it the plain (unfiltered) preview is shown.
+        if !session.outputs.contains(videoOutput), session.canAddOutput(videoOutput) {
+            videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+            videoOutput.alwaysDiscardsLateVideoFrames = true
+            videoOutput.setSampleBufferDelegate(livePreview, queue: videoQueue)
+            session.addOutput(videoOutput)
+        }
         return true
+    }
+
+    /// Matches the filtered frames to the on-screen preview (rotation, front-camera mirroring).
+    func setPreviewGeometry(rotationAngle: CGFloat, mirrored: Bool) {
+        queue.async {
+            guard let connection = self.videoOutput.connection(with: .video) else { return }
+            if connection.isVideoRotationAngleSupported(rotationAngle) { connection.videoRotationAngle = rotationAngle }
+            if connection.isVideoMirroringSupported {
+                connection.automaticallyAdjustsVideoMirroring = false
+                connection.isVideoMirrored = mirrored
+            }
+        }
     }
 
     func start() {
@@ -135,10 +159,55 @@ nonisolated final class PhotoCaptureDelegate: NSObject, AVCapturePhotoCaptureDel
     }
 }
 
+// MARK: - Live filtered preview
+
+/// Receives camera frames, applies the selected retro look (a light preview variant) and hands
+/// the rendered image to `onFrame`. Runs on the video-frame queue; `preset` and `onFrame` are
+/// guarded by a lock because they're set from the main thread.
+nonisolated final class LiveFilterPreview: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _preset: RetroFilterPreset?
+    private var _onFrame: (@Sendable (CGImage) -> Void)?
+    private let context = CIContext(options: [.cacheIntermediates: false])
+    /// Longest edge of the rendered preview frame, in pixels.
+    private let maxEdge: CGFloat = 1080
+
+    var preset: RetroFilterPreset? {
+        get { lock.withLock { _preset } }
+        set { lock.withLock { _preset = newValue } }
+    }
+
+    var onFrame: (@Sendable (CGImage) -> Void)? {
+        get { lock.withLock { _onFrame } }
+        set { lock.withLock { _onFrame = newValue } }
+    }
+
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        guard let preset, let onFrame, let pixels = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        if let image = render(CIImage(cvPixelBuffer: pixels), preset: preset) { onFrame(image) }
+    }
+
+    /// Downscales and applies the preview variant of `preset`. Also used for the still demo image.
+    func render(_ input: CIImage, preset: RetroFilterPreset) -> CGImage? {
+        let extent = input.extent
+        guard extent.width > 0, extent.height > 0 else { return nil }
+        let scale = min(1, maxEdge / max(extent.width, extent.height))
+        var image = input.transformed(by: CGAffineTransform(translationX: -extent.minX, y: -extent.minY))
+        if scale < 1 { image = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale)) }
+        let output = preset.apply(to: image, preview: true, pixelScale: scale)
+        return context.createCGImage(output, from: output.extent)
+    }
+}
+
 // MARK: - Preview
 
 struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
+    var live: LiveFilterPreview
+    /// When false the filtered layer is hidden and the plain camera preview shows through.
+    var filtered: Bool
+    /// DEBUG simulator demo: a still image shown instead of the (missing) camera feed.
+    var demoImage: CGImage? = nil
     var onLayer: (AVCaptureVideoPreviewLayer) -> Void
 
     func makeUIView(context: Context) -> CameraPreviewUIView {
@@ -147,14 +216,47 @@ struct CameraPreview: UIViewRepresentable {
         view.previewLayer.session = session
         view.previewLayer.videoGravity = .resizeAspectFill
         onLayer(view.previewLayer)
+        let layer = view.filteredLayer
+        live.onFrame = { [weak layer] image in
+            DispatchQueue.main.async { layer?.contents = image }
+        }
         return view
     }
 
-    func updateUIView(_ uiView: CameraPreviewUIView, context: Context) {}
+    func updateUIView(_ uiView: CameraPreviewUIView, context: Context) {
+        uiView.demoLayer.contents = demoImage
+        uiView.demoLayer.isHidden = demoImage == nil
+        uiView.filteredLayer.isHidden = !filtered
+        if !filtered { uiView.filteredLayer.contents = nil }
+    }
+
+    static func dismantleUIView(_ uiView: CameraPreviewUIView, coordinator: ()) {
+        uiView.filteredLayer.contents = nil
+    }
 }
 
 final class CameraPreviewUIView: UIView {
     override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
     // swiftlint:disable:next force_cast
     var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
+    let demoLayer = CALayer()
+    let filteredLayer = CALayer()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        for sub in [demoLayer, filteredLayer] {
+            sub.contentsGravity = .resizeAspectFill
+            sub.masksToBounds = true
+            sub.actions = ["contents": NSNull(), "hidden": NSNull(), "bounds": NSNull(), "position": NSNull()]
+            layer.addSublayer(sub)
+        }
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        demoLayer.frame = bounds
+        filteredLayer.frame = bounds
+    }
 }

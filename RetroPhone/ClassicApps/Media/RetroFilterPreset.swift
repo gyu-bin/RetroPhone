@@ -108,11 +108,15 @@ nonisolated struct RetroFilterPreset: Equatable, Sendable {
 
     // MARK: Core Image pipeline
 
-    func apply(to input: CIImage) -> CIImage {
+    /// - Parameters:
+    ///   - preview: live-preview variant: keeps the input resolution and skips grain (a static
+    ///     grain pattern over a moving image reads as dirt on the lens, not sensor noise).
+    ///   - pixelScale: how much the input was already downscaled (blur radius follows it).
+    func apply(to input: CIImage, preview: Bool = false, pixelScale: Double = 1) -> CIImage {
         var image = input
 
         // 1. Resolution
-        let s = scaleFactor(width: input.extent.width, height: input.extent.height)
+        let s = preview ? 1 : scaleFactor(width: input.extent.width, height: input.extent.height)
         if s < 0.999 {
             image = image.applyingFilter("CILanczosScaleTransform", parameters: [
                 kCIInputScaleKey: s,
@@ -161,7 +165,7 @@ nonisolated struct RetroFilterPreset: Equatable, Sendable {
                 "inputAlphaCoefficients": CIVector(x: 0, y: 1, z: 0, w: 0),
             ])
         }
-        if noiseAmount > 0 {
+        if noiseAmount > 0 && !preview {
             image = addLuminanceGrain(to: image, extent: extent)
         }
         image = image.applyingFilter("CISRGBToneCurveToLinear")
@@ -174,7 +178,7 @@ nonisolated struct RetroFilterPreset: Equatable, Sendable {
             ])
         } else if sharpness < 0 {
             image = image.clampedToExtent()
-                .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: -sharpness])
+                .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: -sharpness * (preview ? max(pixelScale, 0.5) : 1)])
         }
         return image.cropped(to: extent)
     }

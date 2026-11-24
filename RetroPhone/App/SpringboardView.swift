@@ -80,9 +80,11 @@ struct ClassicAppHost: View {
     var body: some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black.ignoresSafeArea())
             .padding(.top, bezelPadding.top)
             .padding(.bottom, bezelPadding.bottom)
+            // Behind the padding too: an app that hides the status bar (camera, photo viewer)
+            // must not show the wallpaper in the status-bar strip.
+            .background(Color.black.ignoresSafeArea())
     }
 
     @ViewBuilder private var content: some View {

@@ -14,6 +14,13 @@ struct RetroPhoneApp: App {
         let initial: AppRouter.Screen = !settings.setupCompleted ? .setup : (settings.lockOnLaunch ? .lock : .home)
         let router = AppRouter(screen: initial)
         RouterPersistence.restore(into: router)
+        #if DEBUG
+        // Developer aid: start inside one app (e.g. `-openApp camera`), skipping lock and home.
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-openApp"), i + 1 < args.count, let app = BuiltinApp(rawValue: args[i + 1]) {
+            router.screen = .app(app)
+        }
+        #endif
         _router = State(initialValue: router)
     }
 
