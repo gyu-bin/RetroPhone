@@ -190,7 +190,11 @@ nonisolated struct RetroFilterPreset: Equatable, Sendable {
         guard let random = CIFilter(name: "CIRandomGenerator")?.outputImage else { return image }
         let amplitude = min(1, noiseAmount * 4)
         let bias = 0.5 - 0.5 * amplitude
+        // CIRandomGenerator's alpha is random too, and CIColorMatrix works on un-premultiplied colour
+        // (rgb / alpha): pixels with a tiny alpha blew up into bright white specks. Force alpha to 1 first.
         let grain = random
+            .cropped(to: extent)
+            .settingAlphaOne(in: extent)
             .applyingFilter("CIColorMatrix", parameters: [
                 "inputRVector": CIVector(x: amplitude, y: 0, z: 0, w: 0),
                 "inputGVector": CIVector(x: amplitude, y: 0, z: 0, w: 0),
